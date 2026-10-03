@@ -10,28 +10,28 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenAiModal }) => {
-  const { activeRole, switchRole, language, setLanguage, t, teachers, students } = useApp();
+  const { activeRole, switchRole, language, setLanguage, teachers, students } = useApp();
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-emerald-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-800 via-emerald-600 to-teal-500 text-amber-300 flex items-center justify-center shadow-lg shadow-emerald-700/20 border border-amber-300/30">
-              <BookOpen className="w-6 h-6 stroke-[2.2]" />
+          {/* Logo & Brand with Uploaded Logo Image */}
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onTabChange('workspace')}>
+            <div className="w-12 h-12 rounded-2xl bg-white p-1 flex items-center justify-center shadow-lg shadow-emerald-700/15 border-2 border-emerald-600/30">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-xl sm:text-2xl text-slate-900 tracking-tight font-serif">
-                  أكاديمية <span className="text-emerald-700 font-extrabold">إتقان</span>
+                  أكاديمية <span className="text-emerald-700 font-extrabold">القرآن الكريم</span>
                 </h1>
                 <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300/60 hidden sm:inline-block">
-                  تحفيظ القرآن الكريم
+                  اقرأ وارتقِ
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">منصة تعليمية وتربوية متكاملة بصفة إشرافية ومباشرة</p>
+              <p className="text-xs text-slate-500 hidden sm:block">منصة متكاملة لإدارة حلقات تحفيظ القرآن الكريم</p>
             </div>
           </div>
 
@@ -46,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
               }`}
             >
               <Shield className="w-4 h-4" />
-              لوحة الأعمال والواجهات
+              البوابات والحلقات
             </button>
 
             <button
@@ -82,11 +82,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
             </button>
           </nav>
 
-          {/* Notification Center, Language Switcher & Role Switcher Pills */}
+          {/* Right Action Controls: Role switcher and Language */}
           <div className="flex items-center gap-2 sm:gap-3">
             <NotificationCenter onTabChange={onTabChange} />
 
-            {/* Language Switcher Toggle */}
+            {/* Language Switcher */}
             <button
               onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
               className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-2xl border border-slate-200 transition-all flex items-center gap-1.5 shadow-xs"
@@ -96,11 +96,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
               <span>{language === 'ar' ? 'EN' : 'عربي'}</span>
             </button>
 
+            {/* Role Switcher Controls */}
             <div className="bg-emerald-950 p-1 rounded-2xl border border-emerald-800/60 shadow-inner flex items-center gap-1">
-              {/* Admin Button */}
               <button
-                onClick={() => switchRole('admin')}
-                title="واجهة الإدارة والمشرفة العامة"
+                onClick={() => {
+                  onTabChange('workspace');
+                  switchRole('admin');
+                }}
+                title="بوابة الإدارة والمجلس التعليمي"
                 className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
                   activeRole === 'admin'
                     ? 'bg-emerald-500 text-emerald-950 shadow-md font-extrabold'
@@ -111,13 +114,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
                 <span>الإدارة</span>
               </button>
 
-              {/* Teacher Button */}
               <button
                 onClick={() => {
+                  onTabChange('workspace');
                   const approvedTeacher = teachers.find(t => t.status === 'approved') || teachers[0];
                   switchRole('teacher', approvedTeacher?.id);
                 }}
-                title="واجهة المعلمة الحالية"
+                title="بوابة المعلمة"
                 className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
                   activeRole === 'teacher'
                     ? 'bg-emerald-500 text-emerald-950 shadow-md font-extrabold'
@@ -128,13 +131,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
                 <span>المعلمة</span>
               </button>
 
-              {/* Student Button */}
               <button
                 onClick={() => {
+                  onTabChange('workspace');
                   const student = students[0];
                   switchRole('student', student?.id);
                 }}
-                title="واجهة الطالب/ولي الأمر"
+                title="بوابة الطالب/ولي الأمر"
                 className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
                   activeRole === 'student'
                     ? 'bg-emerald-500 text-emerald-950 shadow-md font-extrabold'
@@ -158,7 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            اللوحة
+            البوابات
           </button>
           <button
             onClick={() => onTabChange('quran')}

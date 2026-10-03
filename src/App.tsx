@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/layout/Navbar';
+import { PortalHeroHeader } from './components/layout/PortalHeroHeader';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { TeacherDashboard } from './components/teacher/TeacherDashboard';
 import { StudentDashboard } from './components/student/StudentDashboard';
 import { QuranReader } from './components/quran/QuranReader';
 import { AzkarView } from './components/azkar/AzkarView';
 import { AiAssistantModal } from './components/ai/AiAssistantModal';
-import { Sparkles, Heart, Shield, BookOpen, GraduationCap, Phone, Mail } from 'lucide-react';
+import { Sparkles, BookOpen, Phone, Mail } from 'lucide-react';
 
 function AppContent() {
   const { activeRole } = useApp();
@@ -16,6 +18,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-['Cairo',sans-serif]">
+      {/* PWA Mobile Installation Prompt (Android / iOS) */}
+      <PwaInstallPrompt />
+
       {/* Top Header Navbar */}
       <Navbar
         currentTab={currentTab}
@@ -24,11 +29,19 @@ function AppContent() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
+        {/* Banner Hero & 3 Portals Switcher */}
+        {currentTab === 'workspace' && (
+          <PortalHeroHeader
+            onTabChange={setCurrentTab}
+            onOpenAiModal={() => setIsAiOpen(true)}
+          />
+        )}
+
         {/* VIEW 1: WORKSPACE / ROLE INTERFACES */}
         {currentTab === 'workspace' && (
-          <div>
+          <div className="animate-in fade-in-50 duration-200">
             {activeRole === 'admin' && <AdminDashboard />}
             {activeRole === 'teacher' && <TeacherDashboard />}
             {activeRole === 'student' && <StudentDashboard />}
@@ -36,10 +49,18 @@ function AppContent() {
         )}
 
         {/* VIEW 2: QURAN READER */}
-        {currentTab === 'quran' && <QuranReader />}
+        {currentTab === 'quran' && (
+          <div className="animate-in fade-in-50 duration-200">
+            <QuranReader />
+          </div>
+        )}
 
         {/* VIEW 3: AZKAR VIEW */}
-        {currentTab === 'azkar' && <AzkarView />}
+        {currentTab === 'azkar' && (
+          <div className="animate-in fade-in-50 duration-200">
+            <AzkarView />
+          </div>
+        )}
 
       </main>
 
@@ -61,14 +82,16 @@ function AppContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             
-            <div className="space-y-1 text-center md:text-right">
-              <div className="flex items-center justify-center md:justify-start gap-2 text-white font-bold text-base font-serif">
-                <BookOpen className="w-5 h-5 text-amber-400" />
-                أكاديمية إتقان لتحفيظ القرآن الكريم
+            <div className="space-y-1.5 text-center md:text-right flex items-center gap-3">
+              <img src="/logo.png" alt="Logo" className="w-10 h-10 bg-white p-1 rounded-xl shadow-md object-contain shrink-0" />
+              <div>
+                <div className="text-white font-bold text-sm font-serif">
+                  أكاديمية القرآن الكريم — اقرأ
+                </div>
+                <p className="text-slate-400 max-w-md text-[11px]">
+                  منصة متكاملة ترعى الحفظ والتلاوة بأعلى درجات الإتقان وبإشراف مباشر من معلمات مجازات.
+                </p>
               </div>
-              <p className="text-slate-400 max-w-md">
-                منصة متكاملة ترعى الحفظ والتلاوة بأعلى درجات الإتقان وبإشراف مباشر من معلمات مجازات.
-              </p>
             </div>
 
             <div className="flex items-center gap-6 text-slate-300 font-semibold">
@@ -85,8 +108,8 @@ function AppContent() {
           </div>
 
           <div className="pt-6 border-t border-slate-800 text-center text-slate-500 text-[11px] flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p>جميع الحقوق محفوظة © {new Date().getFullYear()} - أكاديمية إتقان لتحفيظ القرآن الكريم</p>
-            <p className="flex items-center gap-1">
+            <p>جميع الحقوق محفوظة © {new Date().getFullYear()} - أكاديمية القرآن الكريم</p>
+            <p className="flex items-center gap-1 font-serif text-amber-400/90">
               "خيرُكُم مَن تعَلَّمَ القُرآنَ وعَلَّمَهُ"
             </p>
           </div>
