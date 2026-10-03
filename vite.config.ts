@@ -18,12 +18,17 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png', 'banner.png'],
+        workbox: {
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+        },
         manifest: {
           id: '/',
-          name: 'أكاديمية إتقان لتحفيظ القرآن الكريم',
-          short_name: 'إتقان',
-          description: 'تطبيق متكامل لدارس وتحفيظ القرآن الكريم مع خيار العمل بدون إنترنت',
+          name: 'أكاديمية القرآن الكريم',
+          short_name: 'أكاديمية القرآن',
+          description: 'منصة متكاملة لإدارة حلقات تحفيظ القرآن الكريم مع المصحف المباشر والأذكار',
           theme_color: '#042f2e',
           background_color: '#0f172a',
           display: 'standalone',
