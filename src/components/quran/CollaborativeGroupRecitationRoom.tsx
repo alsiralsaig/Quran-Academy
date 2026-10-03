@@ -58,12 +58,14 @@ interface CollaborativeGroupRecitationRoomProps {
   userName: string;
 }
 
+import { AVATAR_TEACHER_1, AVATAR_STUDENT_1, AVATAR_STUDENT_2 } from '../../data/initialState';
+
 const INITIAL_PARTICIPANTS: RoomParticipant[] = [
-  { id: 'p_teacher', name: 'أ. عائشة محمود العلي', role: 'teacher', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150', isMicOn: true, isReciting: false, hasHandRaised: false, points: 500 },
-  { id: 'p_1', name: 'فاطمة الشمري', role: 'student', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150', isMicOn: true, isReciting: true, hasHandRaised: false, points: 180 },
-  { id: 'p_2', name: 'مريم الدوسري', role: 'student', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=150', isMicOn: false, isReciting: false, hasHandRaised: true, points: 150 },
-  { id: 'p_3', name: 'سارة القحطاني', role: 'student', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=150', isMicOn: false, isReciting: false, hasHandRaised: false, points: 120 },
-  { id: 'p_4', name: 'نورة الغامدي', role: 'student', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=150', isMicOn: false, isReciting: false, hasHandRaised: false, points: 210 },
+  { id: 'p_teacher', name: 'المعلمة عائشة العلي', role: 'teacher', avatar: AVATAR_TEACHER_1, isMicOn: true, isReciting: false, hasHandRaised: false, points: 500 },
+  { id: 'p_1', name: 'فاطمة الشمري (طالبة)', role: 'student', avatar: AVATAR_STUDENT_1, isMicOn: true, isReciting: true, hasHandRaised: false, points: 180 },
+  { id: 'p_2', name: 'مريم الدوسري (طالبة)', role: 'student', avatar: AVATAR_STUDENT_2, isMicOn: false, isReciting: false, hasHandRaised: true, points: 150 },
+  { id: 'p_3', name: 'سارة القحطاني (طالبة)', role: 'student', avatar: AVATAR_STUDENT_1, isMicOn: false, isReciting: false, hasHandRaised: false, points: 120 },
+  { id: 'p_4', name: 'نورة الغامدي (طالبة)', role: 'student', avatar: AVATAR_STUDENT_2, isMicOn: false, isReciting: false, hasHandRaised: false, points: 210 },
 ];
 
 export const CollaborativeGroupRecitationRoom: React.FC<CollaborativeGroupRecitationRoomProps> = ({

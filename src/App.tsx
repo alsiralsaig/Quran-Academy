@@ -97,11 +97,11 @@ function AppContent() {
             <div className="flex items-center gap-6 text-slate-300 font-semibold">
               <div className="flex items-center gap-1">
                 <Phone className="w-4 h-4 text-emerald-400" />
-                <span dir="ltr">+966 50 123 4567</span>
+                <span dir="ltr">+966 50 000 0000</span>
               </div>
               <div className="flex items-center gap-1">
                 <Mail className="w-4 h-4 text-emerald-400" />
-                <span>support@etqan-quran.com</span>
+                <span>info@quran-academy.com</span>
               </div>
             </div>
 

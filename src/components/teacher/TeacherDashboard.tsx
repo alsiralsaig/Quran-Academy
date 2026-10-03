@@ -37,6 +37,7 @@ import { GroupKhatmPlanner } from '../khatm/GroupKhatmPlanner';
 import { PeriodicPerformanceAnalyticsDashboard } from '../analytics/PeriodicPerformanceAnalyticsDashboard';
 import { LiveSessionScheduler } from '../video/LiveSessionScheduler';
 import { PerformanceInsights } from './PerformanceInsights';
+import { LiveQuranClassroomModal } from '../classroom/LiveQuranClassroomModal';
 
 export const TeacherDashboard: React.FC = () => {
   const {
@@ -82,6 +83,7 @@ export const TeacherDashboard: React.FC = () => {
   const [zoomUrl, setZoomUrl] = useState(activeTeacher?.zoomLink || 'https://zoom.us/j/9876543210');
   const [copiedLink, setCopiedLink] = useState(false);
   const [savedMeetingMsg, setSavedMeetingMsg] = useState('');
+  const [isClassroomOpen, setIsClassroomOpen] = useState(false);
 
   // Search & Filter in Student Roster
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -362,29 +364,44 @@ export const TeacherDashboard: React.FC = () => {
           </div>
 
           {/* Meeting Link Quick Box */}
-          <div className="bg-emerald-900/60 p-4 rounded-2xl border border-emerald-700/60 max-w-sm w-full space-y-2">
+          <div className="bg-emerald-900/80 p-4 rounded-2xl border border-emerald-600/60 max-w-sm w-full space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-emerald-200 font-bold flex items-center gap-1">
-                <Video className="w-4 h-4 text-emerald-400" />
-                رابط القاعة المباشرة (Zoom / Google Meet):
+              <span className="text-emerald-200 font-bold flex items-center gap-1.5">
+                <Video className="w-4 h-4 text-amber-400" />
+                القاعة القرآنية المباشرة:
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                مباشر مدمج 🟢
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={zoomUrl}
-                onChange={(e) => setZoomUrl(e.target.value)}
-                className="w-full bg-emerald-950 text-white text-xs p-2 rounded-xl border border-emerald-700 focus:outline-none"
-                dir="ltr"
-              />
+
+            <div className="flex flex-col gap-2">
               <button
-                onClick={handleCopyMeetingLink}
-                className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shrink-0 flex items-center gap-1"
-                title="نسخ رابط القاعة"
+                onClick={() => setIsClassroomOpen(true)}
+                className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-transform hover:scale-[1.02] active:scale-95"
               >
-                {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedLink ? 'تم النسخ' : 'نسخ'}
+                <Video className="w-4 h-4 text-slate-950 animate-pulse" />
+                <span>دخول القاعة المباشرة (تسميع وتجويد) 🎙️</span>
               </button>
+
+              <div className="flex items-center gap-1.5 pt-1">
+                <input
+                  type="text"
+                  value={zoomUrl}
+                  onChange={(e) => setZoomUrl(e.target.value)}
+                  placeholder="رابط خارجي بديل (اختياري)..."
+                  className="w-full bg-emerald-950 text-white text-[11px] p-2 rounded-xl border border-emerald-700 focus:outline-none"
+                  dir="ltr"
+                />
+                <button
+                  onClick={handleCopyMeetingLink}
+                  className="px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-amber-300 font-bold text-xs rounded-xl shrink-0 flex items-center gap-1 border border-emerald-600"
+                  title="نسخ الرابط"
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedLink ? 'تم' : 'نسخ'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -951,6 +968,14 @@ export const TeacherDashboard: React.FC = () => {
 
       {/* PERIODIC PERFORMANCE ANALYTICS DASHBOARD */}
       <PeriodicPerformanceAnalyticsDashboard userRole="teacher" userName={activeTeacher.name} />
+
+      {/* LIVE IN-APP QURAN CLASSROOM MODAL */}
+      <LiveQuranClassroomModal
+        isOpen={isClassroomOpen}
+        onClose={() => setIsClassroomOpen(false)}
+        teacherName={activeTeacher.name}
+        studentName={mySubscriptions[0]?.studentName || 'الطالب'}
+      />
 
     </div>
   );

@@ -1,12 +1,28 @@
 import { TeacherProfile, Package, Subscription, BankAccount, SessionRecord, User, NotificationItem } from '../types';
 
+// Safe SVG Data URI Badges for Islamic Profiles (No real human photos)
+export const AVATAR_ADMIN = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%23064e3b"/><circle cx="50" cy="50" r="38" stroke="%23fbbf24" stroke-width="2" stroke-dasharray="4 2"/><path d="M50 24L65 30V48C65 60 58 70 50 75C42 70 35 60 35 48V30L50 24Z" fill="%2310b981" stroke="%23fbbf24" stroke-width="2"/><path d="M44 48L48 52L56 42" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+export const AVATAR_TEACHER_1 = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%23047857"/><circle cx="50" cy="50" r="38" stroke="%23fef08a" stroke-width="2"/><path d="M50 26C42 26 36 32 36 40C36 46 40 51 46 53V58H54V53C60 51 64 46 64 40C64 32 58 26 50 26Z" fill="%23fef08a"/><path d="M30 76C30 66 38 62 50 62C62 62 70 66 70 76H30Z" fill="%23a7f3d0"/></svg>`;
+
+export const AVATAR_TEACHER_2 = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%230f766e"/><circle cx="50" cy="50" r="38" stroke="%23fde047" stroke-width="2"/><path d="M50 28L63 35V45L50 52L37 45V35L50 28Z" fill="%23fde047"/><path d="M32 75C32 64 40 60 50 60C60 60 68 64 68 75H32Z" fill="%2399f6e4"/></svg>`;
+
+export const AVATAR_TEACHER_3 = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%231e293b"/><circle cx="50" cy="50" r="38" stroke="%23e2e8f0" stroke-width="2"/><path d="M50 26C43 26 38 31 38 38C38 44 42 49 47 50V56H53V50C58 49 62 44 62 38C62 31 57 26 50 26Z" fill="%23cbd5e1"/><path d="M30 76C30 66 38 62 50 62C62 62 70 66 70 76H30Z" fill="%2394a3b8"/></svg>`;
+
+export const AVATAR_STUDENT_1 = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%230284c7"/><circle cx="50" cy="50" r="38" stroke="%23bae6fd" stroke-width="2"/><path d="M50 25L68 35L50 45L32 35L50 25Z" fill="%23facc15"/><path d="M40 45V58C40 63 50 67 50 67C50 67 60 63 60 58V45" stroke="%23facc15" stroke-width="2" fill="none"/><path d="M30 76C30 67 38 64 50 64C62 64 70 67 70 76H30Z" fill="%23e0f2fe"/></svg>`;
+
+export const AVATAR_STUDENT_2 = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%23d97706"/><circle cx="50" cy="50" r="38" stroke="%23fef3c7" stroke-width="2"/><path d="M50 25L68 35L50 45L32 35L50 25Z" fill="%23fef3c7"/><path d="M40 45V58C40 63 50 67 50 67C50 67 60 63 60 58V45" stroke="%23fef3c7" stroke-width="2" fill="none"/><path d="M30 76C30 67 38 64 50 64C62 64 70 67 70 76H30Z" fill="%23fed7aa"/></svg>`;
+
+// Safe receipt mockup SVG
+export const SAMPLE_RECEIPT = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="%23f8fafc"><rect width="400" height="300" rx="16" fill="%23ffffff" stroke="%23cbd5e1" stroke-width="2"/><rect x="20" y="20" width="360" height="50" rx="10" fill="%23047857"/><text x="200" y="52" fill="white" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">إيصال تحويل بنكي معتمد - أكاديمية القرآن</text><text x="40" y="110" fill="%23475569" font-family="sans-serif" font-size="13">رقم العملية: #TRX-9824102</text><text x="40" y="145" fill="%23475569" font-family="sans-serif" font-size="13">المبلغ المحول: 320.00 ر.س</text><text x="40" y="180" fill="%23475569" font-family="sans-serif" font-size="13">الحساب المحول إليه: مصرف الراجحي</text><text x="40" y="215" fill="%23047857" font-family="sans-serif" font-size="14" font-weight="bold">حالة التحويل: تم الدفع بنجاح ✅</text><rect x="40" y="245" width="320" height="2" fill="%23e2e8f0"/><text x="200" y="275" fill="%2394a3b8" font-family="sans-serif" font-size="11" text-anchor="middle">وثيقة إلكترونية صادرة من التطبيق البنكي</text></svg>`;
+
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'notif_1',
     recipientRole: 'student',
     recipientId: 'std_1',
     title: 'تأكيد تفعيل الباقة',
-    message: 'تم اعتماد التحويل البنكي وتفعيل (باقة التأسيس والتلاوة) بنجاح! يمكنك الآن الانضمام للحلقات المباشرة.',
+    message: 'تم اعتماد التحويل وتفعيل (باقة التأسيس والتلاوة) بنجاح! يمكنك الآن الانضمام للحلقات والقاعة المباشرة.',
     type: 'success',
     createdAt: 'منذ ساعتين',
     isRead: false,
@@ -17,7 +33,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
     recipientRole: 'teacher',
     recipientId: 'teacher_1',
     title: 'اعتماد حساب المعلمة',
-    message: 'تهانينا أستاذة أمل! تم اعتماد طلب انضمامك لأكاديمية إتقان، ويمكنك الآن متابعة الطلاب وتسجيل الحصص.',
+    message: 'تم اعتماد حسابك في أكاديمية القرآن الكريم، ويمكنك الآن بدء الحلقات وتسجيل التقييمات.',
     type: 'success',
     createdAt: 'منذ يوم واحد',
     isRead: false,
@@ -27,7 +43,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
     id: 'notif_3',
     recipientRole: 'admin',
     title: 'طلب انضمام جديد',
-    message: 'قدمت أستاذة نورة العتيبي طلب انضمام جديد للكادر التعليمي وبانتظار المراجعة والتدقيق.',
+    message: 'قُدم طلب انضمام جديد للكادر التعليمي وبانتظار مراجعة الإدارة والمجلس.',
     type: 'warning',
     createdAt: 'منذ 3 ساعات',
     isRead: false,
@@ -38,7 +54,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
     recipientRole: 'student',
     recipientId: 'std_1',
     title: 'تقييم جديد للحصة',
-    message: 'قامت المعلمة أ. أمل الحمد بتسجيل تقييم 5 نجوم مع ملاحظات التجويد للحصة الأخيرة.',
+    message: 'تم تسجيل تقييم 5 نجوم مع ملاحظات التجويد للحصة الأخيرة.',
     type: 'info',
     createdAt: 'منذ 4 ساعات',
     isRead: false,
@@ -48,30 +64,30 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 
 export const INITIAL_ADMIN: User = {
   id: 'admin_1',
-  name: 'الشيخة مريم الحارثي (المشرفة العامة)',
-  email: 'admin@etqan-quran.com',
-  phone: '+966501234567',
+  name: 'الإدارة العامة والمجلس التعليمي',
+  email: 'admin@quran-academy.com',
+  phone: '+966 50 000 0000',
   role: 'admin',
-  avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+  avatar: AVATAR_ADMIN,
   createdAt: '2025-01-01',
 };
 
 export const INITIAL_TEACHERS: TeacherProfile[] = [
   {
     id: 'teacher_1',
-    name: 'أستاذة أمل الحمد',
-    email: 'amal.alhamad@etqan.com',
-    phone: '+966551122334',
+    name: 'المعلمة أمل محمد (إجازة برواية حفص)',
+    email: 'teacher.amal@quran-academy.com',
+    phone: '+966 55 000 0001',
     role: 'teacher',
     status: 'approved',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    avatar: AVATAR_TEACHER_1,
     createdAt: '2025-01-10',
     qualifications: {
       ijazat: ['إجازة بقراءة عاصم بروايتيه شعبة وحفص', 'شهادة معتمدة في تدريس القاعدة النورانية'],
       memorizationParts: 30,
       experienceYears: 7,
       specialization: 'حفظ ومراجعة وتصحيح تلاوة مع ضبط المتون',
-      bio: 'خريجة كلية الشريعة والدراسات الإسلامية، معلمة متخصصة في توجيه الخاتمات ومسارات الإتقان.',
+      bio: 'خريجة كلية القرآن والدراسات الإسلامية، معلمة متخصصة في مسارات الإتقان وتوجيه الخاتمات.',
       recitationAudioUrl: 'https://cdn.islamic.network/quran/audio/128/ar.minshawi/1.mp3'
     },
     hourlyRate: 120,
@@ -79,23 +95,23 @@ export const INITIAL_TEACHERS: TeacherProfile[] = [
     availableTimes: '4:00 مساءً - 8:00 مساءً',
     rating: 4.9,
     studentCount: 8,
-    zoomLink: 'https://zoom.us/j/9876543210'
+    zoomLink: 'in_app'
   },
   {
     id: 'teacher_2',
-    name: 'أستاذة عائشة الغامدي',
-    email: 'aisha.ghamdi@etqan.com',
-    phone: '+966559988776',
+    name: 'المعلمة عائشة الغامدي (إجازة التجويد)',
+    email: 'teacher.aisha@quran-academy.com',
+    phone: '+966 55 000 0002',
     role: 'teacher',
     status: 'approved',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    avatar: AVATAR_TEACHER_2,
     createdAt: '2025-02-01',
     qualifications: {
       ijazat: ['إجازة في تحفيظ الأطفال والمبتدئين', 'دبلوم التجويد الميسر'],
       memorizationParts: 30,
       experienceYears: 4,
       specialization: 'تحفيظ الأطفال والناشئة وتأسيس النطق الصحيح',
-      bio: 'شغوفة بتعليم القران الكريم للأطفال بأساليب تفاعلية ممتعة ومحفزة.',
+      bio: 'شغوفة بتعليم القرآن الكريم للأطفال والناشئة بأساليب تفاعلية ممتعة ومحفزة.',
       recitationAudioUrl: 'https://cdn.islamic.network/quran/audio/128/ar.husary/1.mp3'
     },
     hourlyRate: 100,
@@ -103,16 +119,16 @@ export const INITIAL_TEACHERS: TeacherProfile[] = [
     availableTimes: '3:00 مساءً - 7:00 مساءً',
     rating: 4.8,
     studentCount: 5,
-    zoomLink: 'https://meet.google.com/abc-defg-hij'
+    zoomLink: 'in_app'
   },
   {
     id: 'teacher_3',
-    name: 'أستاذة نورة العتيبي (طلب جديد)',
-    email: 'noura.otaibi@gmail.com',
-    phone: '+966508877665',
+    name: 'المعلمة نورة العتيبي (طلب جديد)',
+    email: 'teacher.noura@quran-academy.com',
+    phone: '+966 55 000 0003',
     role: 'teacher',
     status: 'pending',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    avatar: AVATAR_TEACHER_3,
     createdAt: '2025-03-20',
     qualifications: {
       ijazat: ['إجازة برواية حفص عن عاصم من طريق الشاطبية'],
@@ -126,7 +142,8 @@ export const INITIAL_TEACHERS: TeacherProfile[] = [
     availableDays: ['الأحد', 'الإثنين', 'الأربعاء'],
     availableTimes: '5:00 مساءً - 9:00 مساءً',
     rating: 5.0,
-    studentCount: 0
+    studentCount: 0,
+    zoomLink: 'in_app'
   }
 ];
 
@@ -140,7 +157,7 @@ export const INITIAL_PACKAGES: Package[] = [
     currency: 'ريال سعودي',
     description: 'مناسبة للمبتدئين ولتصحيح التلاوة والتأسيس الصحيح للحفظ.',
     features: [
-      '8 حصص فردية مع المعلمة مباشرة',
+      '8 حصص فردية بالقاعة المباشرة',
       'مدة الحصة 45 دقيقة',
       'تقرير تقييم أسبوعي لمستوى التجويد',
       'متابعة الحفظ عبر تطبيق الأكاديمية'
@@ -156,7 +173,7 @@ export const INITIAL_PACKAGES: Package[] = [
     currency: 'ريال سعودي',
     description: 'باقة مكثفة لمراجعة أجزاء القرآن والتأهيل للإجازة مع ضبط التجويد.',
     features: [
-      '12 حصة فردية تفاعلية',
+      '12 حصة فردية تفاعلية بالقاعة',
       'مدة الحصة 60 دقيقة كاملة',
       'جدول مراجعة مخصص من المعلمة',
       'اختبارات مرحلية وشهادة إنجاز',
@@ -176,7 +193,7 @@ export const INITIAL_PACKAGES: Package[] = [
       '16 حصة فردية قصيرة وممتعة',
       'مدة الحصة 30 دقيقة تتناسب مع تركيز الطفل',
       'تسميع أذكار وقصار السور',
-      'شهادة تقدير شهري للأولياء الأمور'
+      'شهادة تقدير شهرية لأولياء الأمور'
     ],
     popular: false
   }
@@ -185,23 +202,23 @@ export const INITIAL_PACKAGES: Package[] = [
 export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
   {
     bankName: 'مصرف الراجحي',
-    accountName: 'أكاديمية إتقان لتحفيظ القرآن',
-    accountNumber: '4820000123456789',
-    iban: 'SA03800004820000123456789',
+    accountName: 'أكاديمية القرآن الكريم',
+    accountNumber: '4820000000000000',
+    iban: 'SA0380000000000000000000',
     logoColor: 'from-blue-600 to-indigo-700'
   },
   {
     bankName: 'البنك الأهلي السعودي (SNB)',
-    accountName: 'أكاديمية إتقان للتعليم والتدريب',
-    accountNumber: '1015000098765432',
-    iban: 'SA211000001015000098765432',
+    accountName: 'أكاديمية القرآن الكريم للتعليم والتحفيظ',
+    accountNumber: '1015000000000000',
+    iban: 'SA2110000000000000000000',
     logoColor: 'from-emerald-600 to-teal-700'
   },
   {
     bankName: 'محفظة STC Pay / Pay (سريع)',
-    accountName: 'أكاديمية إتقان',
-    accountNumber: '0501234567',
-    iban: 'STC-PAY-0501234567',
+    accountName: 'أكاديمية القرآن الكريم',
+    accountNumber: '0500000000',
+    iban: 'STC-PAY-0500000000',
     logoColor: 'from-purple-600 to-violet-700'
   }
 ];
@@ -209,20 +226,20 @@ export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
 export const INITIAL_STUDENTS: User[] = [
   {
     id: 'std_1',
-    name: 'عبدالرحمن الشمري',
-    email: 'abdulrahman@gmail.com',
-    phone: '+966540001122',
+    name: 'عبدالرحمن الشمري (طالب)',
+    email: 'student.abdulrahman@quran-academy.com',
+    phone: '+966 54 000 0001',
     role: 'student',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    avatar: AVATAR_STUDENT_1,
     createdAt: '2025-02-10'
   },
   {
     id: 'std_2',
-    name: 'فاطمة أحمد',
-    email: 'fatima.ahmed@gmail.com',
-    phone: '+966541112233',
+    name: 'فاطمة أحمد (طالبة)',
+    email: 'student.fatima@quran-academy.com',
+    phone: '+966 54 000 0002',
     role: 'student',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+    avatar: AVATAR_STUDENT_2,
     createdAt: '2025-03-25'
   }
 ];
@@ -232,9 +249,9 @@ export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
     id: 'sub_101',
     studentId: 'std_1',
     studentName: 'عبدالرحمن الشمري',
-    studentPhone: '+966540001122',
+    studentPhone: '+966 54 000 0001',
     teacherId: 'teacher_1',
-    teacherName: 'أستاذة أمل الحمد',
+    teacherName: 'المعلمة أمل محمد',
     packageId: 'pkg_1',
     packageName: 'باقة التأسيس والتلاوة',
     totalSessions: 8,
@@ -242,7 +259,7 @@ export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
     remainingSessions: 6,
     amountPaid: 320,
     currency: 'ريال سعودي',
-    paymentReceiptUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
+    paymentReceiptUrl: SAMPLE_RECEIPT,
     paymentStatus: 'approved',
     startDate: '2025-03-01',
     expiryDate: '2025-04-01',
@@ -252,9 +269,9 @@ export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
     id: 'sub_102',
     studentId: 'std_2',
     studentName: 'فاطمة أحمد',
-    studentPhone: '+966541112233',
+    studentPhone: '+966 54 000 0002',
     teacherId: 'teacher_2',
-    teacherName: 'أستاذة عائشة الغامدي',
+    teacherName: 'المعلمة عائشة الغامدي',
     packageId: 'pkg_2',
     packageName: 'باقة الإتقان والخاتمات',
     totalSessions: 12,
@@ -262,7 +279,7 @@ export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
     remainingSessions: 12,
     amountPaid: 480,
     currency: 'ريال سعودي',
-    paymentReceiptUrl: 'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=600&auto=format&fit=crop&q=80',
+    paymentReceiptUrl: SAMPLE_RECEIPT,
     paymentStatus: 'pending',
     createdAt: '2025-03-28'
   }
@@ -275,7 +292,7 @@ export const INITIAL_SESSIONS: SessionRecord[] = [
     studentId: 'std_1',
     studentName: 'عبدالرحمن الشمري',
     teacherId: 'teacher_1',
-    teacherName: 'أستاذة أمل الحمد',
+    teacherName: 'المعلمة أمل محمد',
     date: '2025-03-22',
     time: '05:00 م',
     surahName: 'سورة البقرة',
@@ -292,7 +309,7 @@ export const INITIAL_SESSIONS: SessionRecord[] = [
     studentId: 'std_1',
     studentName: 'عبدالرحمن الشمري',
     teacherId: 'teacher_1',
-    teacherName: 'أستاذة أمل الحمد',
+    teacherName: 'المعلمة أمل محمد',
     date: '2025-03-25',
     time: '05:00 م',
     surahName: 'سورة البقرة',

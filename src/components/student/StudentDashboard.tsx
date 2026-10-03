@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Package, TeacherProfile, Subscription } from '../../types';
+import { SAMPLE_RECEIPT } from '../../data/initialState';
 import { QuickReviewMode } from './QuickReviewMode';
 import { GamificationBadges } from './GamificationBadges';
 import { InteractiveSessionsCalendar } from '../calendar/InteractiveSessionsCalendar';
@@ -47,6 +48,7 @@ import { GroupKhatmPlanner } from '../khatm/GroupKhatmPlanner';
 import { PeriodicPerformanceAnalyticsDashboard } from '../analytics/PeriodicPerformanceAnalyticsDashboard';
 import { StudentKpiRechartsDashboard } from '../analytics/StudentKpiRechartsDashboard';
 import { LiveSessionScheduler } from '../video/LiveSessionScheduler';
+import { LiveQuranClassroomModal } from '../classroom/LiveQuranClassroomModal';
 import { GripVertical, ArrowUp, ArrowDown, Move } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
@@ -63,8 +65,8 @@ export const StudentDashboard: React.FC = () => {
 
   // Active student account or fallback
   const [studentName, setStudentName] = useState(currentUser.name || 'عبدالرحمن الشمري');
-  const [studentPhone, setStudentPhone] = useState(currentUser.phone || '+966540001122');
-  const [studentEmail, setStudentEmail] = useState(currentUser.email || 'abdulrahman@gmail.com');
+  const [studentPhone, setStudentPhone] = useState(currentUser.phone || '+966 54 000 0001');
+  const [studentEmail, setStudentEmail] = useState(currentUser.email || 'student.abdulrahman@quran-academy.com');
 
   // Subscription wizard state
   const [showSubscribeWizard, setShowSubscribeWizard] = useState(false);
@@ -73,15 +75,14 @@ export const StudentDashboard: React.FC = () => {
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherProfile | null>(
     teachers.find((t) => t.status === 'approved') || null
   );
-  const [receiptImage, setReceiptImage] = useState<string>(
-    'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80'
-  );
+  const [receiptImage, setReceiptImage] = useState<string>(SAMPLE_RECEIPT);
   const [copiedIban, setCopiedIban] = useState('');
   const [submitSuccessSub, setSubmitSuccessSub] = useState<Subscription | null>(null);
   const [isQuickReviewOpen, setIsQuickReviewOpen] = useState(false);
   const [showFocusMode, setShowFocusMode] = useState(false);
   const [activeCelebration, setActiveCelebration] = useState<MilestoneAchievement | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [isClassroomOpen, setIsClassroomOpen] = useState(false);
 
   // Get active student's subscriptions
   const mySubscriptions = subscriptions.filter(
@@ -278,15 +279,13 @@ export const StudentDashboard: React.FC = () => {
                 احتفل بإنجاز حفظ سورة 🎉
               </button>
 
-              <a
-                href="https://zoom.us/j/9876543210"
-                target="_blank"
-                rel="noreferrer"
-                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
+              <button
+                onClick={() => setIsClassroomOpen(true)}
+                className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 border border-emerald-400/30"
               >
                 <Video className="w-4 h-4 text-amber-300 animate-pulse" />
-                دخول القاعة والحصة المباشرة
-              </a>
+                دخول القاعة والحصة المباشرة 🎙️
+              </button>
             </div>
           </div>
 
@@ -765,6 +764,14 @@ export const StudentDashboard: React.FC = () => {
       <NotificationPreferencesModal
         isOpen={showNotificationModal}
         onClose={() => setShowNotificationModal(false)}
+        studentName={studentName}
+      />
+
+      {/* LIVE IN-APP QURAN CLASSROOM MODAL */}
+      <LiveQuranClassroomModal
+        isOpen={isClassroomOpen}
+        onClose={() => setIsClassroomOpen(false)}
+        teacherName={activeApprovedSub?.teacherName || 'المعلمة المعتمدة'}
         studentName={studentName}
       />
 
