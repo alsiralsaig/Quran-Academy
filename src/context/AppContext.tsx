@@ -117,7 +117,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'etqan_quran_academy_v3';
+const STORAGE_KEY = 'etqan_quran_academy_v4';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial or stored state
@@ -194,6 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Purge old cached states from previous versions
       localStorage.removeItem('etqan_quran_academy_v1');
       localStorage.removeItem('etqan_quran_academy_v2');
+      localStorage.removeItem('etqan_quran_academy_v3');
 
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {

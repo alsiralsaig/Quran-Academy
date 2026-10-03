@@ -9,7 +9,7 @@ import { StudentDashboard } from './components/student/StudentDashboard';
 import { QuranReader } from './components/quran/QuranReader';
 import { AzkarView } from './components/azkar/AzkarView';
 import { AiAssistantModal } from './components/ai/AiAssistantModal';
-import { Sparkles, BookOpen, Phone, Mail } from 'lucide-react';
+import { Sparkles, BookOpen, Phone, Mail, MessageCircle } from 'lucide-react';
 
 function AppContent() {
   const { activeRole } = useApp();
@@ -94,15 +94,34 @@ function AppContent() {
               </div>
             </div>
 
-            <div className="flex items-center gap-6 text-slate-300 font-semibold">
-              <div className="flex items-center gap-1">
-                <Phone className="w-4 h-4 text-emerald-400" />
-                <span dir="ltr">+966 50 000 0000</span>
-              </div>
-              <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 sm:gap-6 text-slate-300 font-semibold">
+              <a
+                href="https://wa.me/249913009060"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-xl border border-emerald-500/40 flex items-center gap-1.5 transition-colors text-xs"
+                title="تواصل مباشر عبر الواتساب"
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-400" />
+                <span>واتساب الأكاديمية</span>
+              </a>
+
+              <a
+                href="tel:+249913009060"
+                className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
+                title="الاتصال المباشر"
+              >
+                <Phone className="w-4 h-4 text-amber-400" />
+                <span dir="ltr">+249 913 009 060</span>
+              </a>
+
+              <a
+                href="mailto:info@quran-academy.com"
+                className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
+              >
                 <Mail className="w-4 h-4 text-emerald-400" />
                 <span>info@quran-academy.com</span>
-              </div>
+              </a>
             </div>
 
           </div>

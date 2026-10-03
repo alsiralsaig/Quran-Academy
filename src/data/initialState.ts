@@ -66,7 +66,7 @@ export const INITIAL_ADMIN: User = {
   id: 'admin_1',
   name: 'الإدارة العامة والمجلس التعليمي',
   email: 'admin@quran-academy.com',
-  phone: '+966 50 000 0000',
+  phone: '+249 913 009 060',
   role: 'admin',
   avatar: AVATAR_ADMIN,
   createdAt: '2025-01-01',
@@ -201,6 +201,13 @@ export const INITIAL_PACKAGES: Package[] = [
 
 export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
   {
+    bankName: 'بنك الخرطوم (تطبيق بنكك Bankak)',
+    accountName: 'أكاديمية القرآن الكريم',
+    accountNumber: '0913009060',
+    iban: 'BOK-0913009060',
+    logoColor: 'from-amber-600 to-emerald-700'
+  },
+  {
     bankName: 'مصرف الراجحي',
     accountName: 'أكاديمية القرآن الكريم',
     accountNumber: '4820000000000000',
@@ -208,18 +215,11 @@ export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
     logoColor: 'from-blue-600 to-indigo-700'
   },
   {
-    bankName: 'البنك الأهلي السعودي (SNB)',
-    accountName: 'أكاديمية القرآن الكريم للتعليم والتحفيظ',
-    accountNumber: '1015000000000000',
-    iban: 'SA2110000000000000000000',
-    logoColor: 'from-emerald-600 to-teal-700'
-  },
-  {
-    bankName: 'محفظة STC Pay / Pay (سريع)',
+    bankName: 'محفظة التحويل السريع وواتساب الدعم',
     accountName: 'أكاديمية القرآن الكريم',
-    accountNumber: '0500000000',
-    iban: 'STC-PAY-0500000000',
-    logoColor: 'from-purple-600 to-violet-700'
+    accountNumber: '+249 913 009 060',
+    iban: 'WA-249913009060',
+    logoColor: 'from-emerald-600 to-teal-700'
   }
 ];
 
