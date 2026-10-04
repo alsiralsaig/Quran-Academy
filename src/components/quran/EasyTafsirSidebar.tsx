@@ -62,7 +62,12 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
   useEffect(() => {
     if (!ayah) return;
 
-    if (ayah.tafsirText && ayah.tafsirText.length > 20) {
+    if (
+      ayah.tafsirText &&
+      ayah.tafsirText.length > 20 &&
+      !ayah.tafsirText.includes('بيان المعاني الإجمالية') &&
+      !ayah.tafsirText.includes('بيان معاني الألفاظ')
+    ) {
       setFetchedMoyassar(ayah.tafsirText);
       return;
     }
@@ -74,14 +79,14 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
         if (data?.data?.text) {
           setFetchedMoyassar(data.data.text);
         } else {
-          setFetchedMoyassar(`تفسير الآية (${ayah.numberInSurah}) من سورة ${surahName}: بيان معاني الألفاظ ودلالاتها المباركة وحكم الأحكام.`);
+          setFetchedMoyassar(`تفسير ميسر للآية (${ayah.numberInSurah}) من سورة ${surahName}: توجيهات إيمانية ودلالات معاني الألفاظ المباركة.`);
         }
       })
       .catch(() => {
         setFetchedMoyassar(`تفسير الآية (${ayah.numberInSurah}) من سورة ${surahName}: التفسير الميسر المعتمد لمجمع الملك فهد لطباعة المصحف الشريف.`);
       })
       .finally(() => setLoadingTafsir(false));
-  }, [surahNumber, ayah?.numberInSurah]);
+  }, [surahNumber, ayah?.numberInSurah, ayah?.tafsirText]);
 
   if (!isOpen || !ayah) return null;
 

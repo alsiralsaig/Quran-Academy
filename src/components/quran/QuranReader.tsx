@@ -172,17 +172,29 @@ export const QuranReader: React.FC = () => {
       setAyahs(SAMPLE_SURAHS_AYAS[selectedSurah.number].ayahs);
     } else {
       setLoadingAyahs(true);
-      fetch(`https://api.alquran.cloud/v1/surah/${selectedSurah.number}`)
+      fetch(`https://api.alquran.cloud/v1/surah/${selectedSurah.number}/editions/quran-uthmani,ar.muyassar`)
         .then((res) => res.json())
         .then((data) => {
-          if (data?.data?.ayahs) {
+          if (data?.data && Array.isArray(data.data) && data.data.length >= 2) {
+            const textList = data.data[0]?.ayahs || [];
+            const tafsirList = data.data[1]?.ayahs || [];
+            const formattedAyahs: QuranAyah[] = textList.map((a: any, idx: number) => ({
+              number: a.number,
+              text: a.text,
+              numberInSurah: a.numberInSurah,
+              juz: a.juz,
+              page: a.page,
+              tafsirText: tafsirList[idx]?.text || a.text,
+            }));
+            setAyahs(formattedAyahs);
+          } else if (data?.data?.ayahs) {
             const formattedAyahs: QuranAyah[] = data.data.ayahs.map((a: any) => ({
               number: a.number,
               text: a.text,
               numberInSurah: a.numberInSurah,
               juz: a.juz,
               page: a.page,
-              tafsirText: `تفسير الآية ${a.numberInSurah} من سورة ${selectedSurah.name}: بيان المعاني الإجمالية ودلالات الألفاظ المباركة.`,
+              tafsirText: a.text,
             }));
             setAyahs(formattedAyahs);
           }
