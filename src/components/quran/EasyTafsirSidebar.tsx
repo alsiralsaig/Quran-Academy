@@ -6,6 +6,7 @@ import {
   Copy,
   Check,
   Volume2,
+  VolumeX,
   Share2,
   Bookmark,
   Lightbulb,
@@ -14,9 +15,12 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  ExternalLink
+  ExternalLink,
+  Play,
+  Pause
 } from 'lucide-react';
 import { QuranAyah } from '../../types';
+import { getAyahAudioUrl } from '../../data/quranData';
 
 export interface EasyTafsirSidebarProps {
   isOpen: boolean;
@@ -43,6 +47,16 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
   const [copiedTafsir, setCopiedTafsir] = useState(false);
   const [fetchedMoyassar, setFetchedMoyassar] = useState<string>('');
   const [loadingTafsir, setLoadingTafsir] = useState<boolean>(false);
+  const [isPlayingLocalAudio, setIsPlayingLocalAudio] = useState<boolean>(false);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+
+  // Stop audio on close or change
+  useEffect(() => {
+    if (currentAudio) {
+      currentAudio.pause();
+      setIsPlayingLocalAudio(false);
+    }
+  }, [isOpen, ayah?.numberInSurah, surahNumber]);
 
   // Fetch authentic Al-Tafsir Al-Muyassar from Quran API if not provided
   useEffect(() => {
@@ -71,8 +85,56 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
 
   if (!isOpen || !ayah) return null;
 
+  const handlePlayAudio = () => {
+    if (isPlayingLocalAudio && currentAudio) {
+      currentAudio.pause();
+      setIsPlayingLocalAudio(false);
+      return;
+    }
+
+    if (currentAudio) {
+      currentAudio.pause();
+    }
+
+    const audioUrl = getAyahAudioUrl(surahNumber, ayah.numberInSurah, 'afasy');
+    const audio = new Audio(audioUrl);
+    
+    audio.onended = () => {
+      setIsPlayingLocalAudio(false);
+    };
+
+    audio.onerror = () => {
+      const surahPadded = surahNumber.toString().padStart(3, '0');
+      const ayahPadded = ayah.numberInSurah.toString().padStart(3, '0');
+      const fallback = new Audio(`https://verses.quran.com/Alafasy/mp3/${surahPadded}${ayahPadded}.mp3`);
+      fallback.onended = () => setIsPlayingLocalAudio(false);
+      fallback.play().catch(e => console.warn('Fallback failed:', e));
+      setCurrentAudio(fallback);
+    };
+
+    audio.play().then(() => {
+      setIsPlayingLocalAudio(true);
+      setCurrentAudio(audio);
+    }).catch(err => {
+      console.warn('Playback error:', err);
+      // Try secondary CDN
+      const surahPadded = surahNumber.toString().padStart(3, '0');
+      const ayahPadded = ayah.numberInSurah.toString().padStart(3, '0');
+      const fallback = new Audio(`https://verses.quran.com/Alafasy/mp3/${surahPadded}${ayahPadded}.mp3`);
+      fallback.onended = () => setIsPlayingLocalAudio(false);
+      fallback.play().then(() => {
+        setIsPlayingLocalAudio(true);
+        setCurrentAudio(fallback);
+      }).catch(e => console.error(e));
+    });
+
+    if (onPlayAyahAudio) {
+      onPlayAyahAudio(ayah.numberInSurah);
+    }
+  };
+
   const handleCopyTafsir = () => {
-    const fullText = `【 ${surahName} - آية ${ayah.numberInSurah} 】\n\n﴿ ${ayah.text} ﴾\n\n📖 التفسير الميسر:\n${fetchedMoyassar}\n\nتطبيق أكاديمية إتقان للقرآن الكريم`;
+    const fullText = `【 ${surahName} - آية ${ayah.numberInSurah} 】\n\n﴿ ${ayah.text} ﴾\n\n📖 التفسير الميسر:\n${fetchedMoyassar}\n\nتطبيق أكاديمية القرآن الكريم`;
     navigator.clipboard.writeText(fullText);
     setCopiedTafsir(true);
     setTimeout(() => setCopiedTafsir(false), 2500);
@@ -90,7 +152,7 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
             </span>
             <div>
               <span className="text-[10px] font-black text-amber-400 block uppercase tracking-wider">
-                المكّون الجانبي للتفسير الميسر
+                المكون الجانبي للتفسير الميسر
               </span>
               <h3 className="font-extrabold text-base text-white font-serif">
                 سورة {surahName} - الآية ({ayah.numberInSurah})
@@ -99,7 +161,10 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (currentAudio) currentAudio.pause();
+              onClose();
+            }}
             className="p-2 bg-slate-800 hover:bg-rose-900/50 hover:text-rose-300 rounded-xl transition-all border border-slate-700"
             title="إغلاق التفسير"
           >
@@ -119,15 +184,17 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
             </button>
           ) : <div />}
 
-          {onPlayAyahAudio && (
-            <button
-              onClick={() => onPlayAyahAudio(ayah.numberInSurah)}
-              className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center gap-1.5"
-            >
-              <Volume2 className="w-4 h-4 text-amber-300" />
-              <span>استماع للتلاوة</span>
-            </button>
-          )}
+          <button
+            onClick={handlePlayAudio}
+            className={`px-4 py-1.5 rounded-xl text-xs font-black shadow-md transition-all flex items-center gap-1.5 ${
+              isPlayingLocalAudio
+                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black animate-pulse'
+                : 'bg-emerald-700 hover:bg-emerald-600 text-white'
+            }`}
+          >
+            {isPlayingLocalAudio ? <Pause className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-amber-300" />}
+            <span>{isPlayingLocalAudio ? 'إيقاف التلاوة' : 'استماع للتلاوة'}</span>
+          </button>
 
           {onSelectNextAyah ? (
             <button
@@ -234,16 +301,12 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
 
             <div className="space-y-2 text-xs">
               <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="font-bold text-amber-300">ٱلْقَيُّومُ:</span>
-                <span className="text-slate-300 font-medium">القائم بنفسه، القائم على تدبير خلق السموات والأرض.</span>
+                <span className="font-bold text-amber-300">ٱلرَّحْمَٰنِ:</span>
+                <span className="text-slate-300 font-medium">ذو الرحمة الشاملة لجميع الخلائق في الدنيا.</span>
               </div>
               <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="font-bold text-amber-300">سِنَةٌ:</span>
-                <span className="text-slate-300 font-medium">النعاس والنعاس أول النوم.</span>
-              </div>
-              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="font-bold text-amber-300">وَلَا يَـُٔودُهُۥ:</span>
-                <span className="text-slate-300 font-medium">لا يثقله ولا يعجزه حفظ السماء والأرض.</span>
+                <span className="font-bold text-amber-300">ٱلرَّحِيمِ:</span>
+                <span className="text-slate-300 font-medium">المختص برحمته عباده المؤمنين في الآخرة.</span>
               </div>
             </div>
           </div>
@@ -254,13 +317,13 @@ export const EasyTafsirSidebar: React.FC<EasyTafsirSidebarProps> = ({
           <div className="bg-slate-950/70 p-5 rounded-3xl border border-slate-800 space-y-3">
             <h4 className="text-xs font-black text-amber-300 border-b border-slate-800 pb-2 flex items-center gap-1.5">
               <Lightbulb className="w-4 h-4 text-amber-400" />
-              تأملات تربوية وهدايات قرأنية
+              تأملات تربوية وهدايات قرآنية
             </h4>
 
             <ul className="list-disc list-inside text-xs text-slate-200 space-y-2 leading-relaxed">
-              <li>كمال قيومية الله سبحانه وتنزهه عن النقص والنعاس والنوم.</li>
-              <li>إثبات ملك الله التام لكل ما في السماوات وما في الأرض.</li>
-              <li>إثبات الشفاعة لمن أذن له الله ورضي عن قوله وعمله.</li>
+              <li>سعة رحمة الله سبحانه التي سبقت غضبه ووسعت كل شيء.</li>
+              <li>الابتداء بذكر أسماء الرحمة يبعث في قلب المؤمن الرجاء والأمل.</li>
+              <li>التحلي بالرحمة في معاملة الناس اقتداءً برحمة الله بعباده.</li>
             </ul>
           </div>
         )}

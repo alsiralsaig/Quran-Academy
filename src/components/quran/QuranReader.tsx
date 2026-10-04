@@ -28,7 +28,7 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import { ALL_SURAHS, RECITERS, SAMPLE_SURAHS_AYAS } from '../../data/quranData';
+import { ALL_SURAHS, RECITERS, SAMPLE_SURAHS_AYAS, getAyahAudioUrl } from '../../data/quranData';
 import { QuranSurah, QuranAyah } from '../../types';
 import { fetchAiTafsirForAyah, AiTafsirInsight } from '../../services/geminiTafsirService';
 import { TajweedGuideModal } from './TajweedGuideModal';
@@ -216,7 +216,7 @@ export const QuranReader: React.FC = () => {
     }
 
     const ayah = ayahs[index];
-    const audioUrl = `${selectedReciter.serverUrl}${selectedSurah.number}_${ayah.numberInSurah}.mp3`;
+    const audioUrl = getAyahAudioUrl(selectedSurah.number, ayah.numberInSurah, selectedReciter.id);
     const newAudio = new Audio(audioUrl);
     newAudio.playbackRate = playbackRate;
 
@@ -229,7 +229,9 @@ export const QuranReader: React.FC = () => {
     };
 
     newAudio.play().catch(() => {
-      const altAudio = new Audio(`https://cdn.islamic.network/quran/audio/128/ar.minshawi/${selectedSurah.number}_${ayah.numberInSurah}.mp3`);
+      const surahPadded = selectedSurah.number.toString().padStart(3, '0');
+      const ayahPadded = ayah.numberInSurah.toString().padStart(3, '0');
+      const altAudio = new Audio(`https://verses.quran.com/Alafasy/mp3/${surahPadded}${ayahPadded}.mp3`);
       altAudio.playbackRate = playbackRate;
       altAudio.ontimeupdate = () => {
         if (altAudio.duration && !isNaN(altAudio.duration)) {
@@ -238,7 +240,7 @@ export const QuranReader: React.FC = () => {
           setAudioDuration(altAudio.duration);
         }
       };
-      altAudio.play();
+      altAudio.play().catch(e => console.warn('Audio fallback error:', e));
     });
 
     setAudioObj(newAudio);

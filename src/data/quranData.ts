@@ -9,30 +9,54 @@ export interface Reciter {
 
 export const RECITERS: Reciter[] = [
   {
-    id: 'minshawi',
-    name: 'الشيخ محمد صديق المنشاوي',
-    subtext: 'المصحف المرتل',
-    serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.minshawi/',
-  },
-  {
     id: 'afasy',
     name: 'الشيخ مشاري بن راشد العفاسي',
     subtext: 'قراءة عذبة وممتازة',
-    serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/',
+    serverUrl: 'https://everyayah.com/data/Alafasy_128kbps/',
+  },
+  {
+    id: 'minshawi',
+    name: 'الشيخ محمد صديق المنشاوي',
+    subtext: 'المصحف المرتل المتقن',
+    serverUrl: 'https://everyayah.com/data/Minshawy_Murattal_128kbps/',
   },
   {
     id: 'husary',
     name: 'الشيخ محمود خليل الحصري',
-    subtext: 'المعلم والمتقن',
-    serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.husary/',
+    subtext: 'المعلم والمتقن للتجويد',
+    serverUrl: 'https://everyayah.com/data/Husary_128kbps/',
   },
   {
     id: 'ghamadi',
     name: 'الشيخ سعد الغامدي',
-    subtext: 'تلاوة خاشعة',
-    serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.ghamadi/',
+    subtext: 'تلاوة خاشعة وهادئة',
+    serverUrl: 'https://everyayah.com/data/Ghamadi_40kbps/',
+  },
+  {
+    id: 'abdulbasit',
+    name: 'الشيخ عبد الباسط عبد الصمد',
+    subtext: 'المصحف المرتل',
+    serverUrl: 'https://everyayah.com/data/Abdul_Basit_Murattal_192kbps/',
   },
 ];
+
+export function getAyahAudioUrl(surahNumber: number, ayahNumberInSurah: number, reciterId: string = 'afasy'): string {
+  const surahPadded = surahNumber.toString().padStart(3, '0');
+  const ayahPadded = ayahNumberInSurah.toString().padStart(3, '0');
+  const fileKey = `${surahPadded}${ayahPadded}.mp3`;
+
+  const reciterFolders: Record<string, string> = {
+    minshawi: 'Minshawy_Murattal_128kbps',
+    afasy: 'Alafasy_128kbps',
+    husary: 'Husary_128kbps',
+    ghamadi: 'Ghamadi_40kbps',
+    abdulbasit: 'Abdul_Basit_Murattal_192kbps',
+    hudhaify: 'Hudhaify_128kbps',
+  };
+
+  const folder = reciterFolders[reciterId] || 'Alafasy_128kbps';
+  return `https://everyayah.com/data/${folder}/${fileKey}`;
+}
 
 export const ALL_SURAHS: QuranSurah[] = [
   { number: 1, name: "الفاتحة", englishName: "Al-Fatiha", englishNameTranslation: "The Opening", numberOfAyahs: 7, revelationType: "Meccan", juzNumber: 1 },
