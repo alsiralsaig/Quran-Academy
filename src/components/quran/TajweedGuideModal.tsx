@@ -16,6 +16,7 @@ import {
   Eye
 } from 'lucide-react';
 import { TAJWEED_RULES, TajweedRule } from '../../data/tajweedData';
+import { getAyahAudioUrl } from '../../data/quranData';
 
 interface TajweedGuideModalProps {
   isOpen: boolean;
@@ -104,31 +105,34 @@ export const TajweedGuideModal: React.FC<TajweedGuideModalProps> = ({ isOpen, on
     },
   ];
 
-  // Short Video Lesson Modules
+  // Short Audio/Visual Lesson Modules
   const VIDEO_LESSONS = [
     {
       id: 'v1',
-      title: 'شرح مبسط لأحكام النون الساكنة والتنوين 🎥',
+      title: 'شرح مبسط لأحكام النون الساكنة والتنوين 🎙️',
       duration: '04:15 دقيقة',
       instructor: 'الشيخ د. أيمن سويد',
-      summary: 'فيديو توضيحي يسير يشرح الفرق بين الإظهار والإدغام والإقلاب والإخفاء بالأمثلة التفاعلية.',
-      videoEmbedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', // Placeholder / standard video frame
+      summary: 'درس توضيحي يسير يشرح الفرق بين الإظهار والإدغام والإقلاب والإخفاء بالأمثلة التفاعلية وطريقة التطبيق العملي عند التلاوة.',
+      audioSurah: 112,
+      audioAyah: 1,
     },
     {
       id: 'v2',
-      title: 'كيفية نطق صفة القلقلة وتطبيقها العملي 🎬',
+      title: 'كيفية نطق صفة القلقلة وتطبيقها العملي 🎙️',
       duration: '03:30 دقيقة',
-      instructor: 'أكاديمية إتقان التجويد',
-      summary: 'درس مرئي استعراضي يوضح مراتب القلقلة الصغرى والكبرى وكيفية تجنب التحرير الخاطئ للحرف.',
-      videoEmbedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+      instructor: 'الشيخ محمود خليل الحصري',
+      summary: 'درس استعراضي يوضح مراتب القلقلة الصغرى والكبرى (قطب جد) وكيفية تجنب تحريك الحرف الساكن أو مطّه.',
+      audioSurah: 113,
+      audioAyah: 1,
     },
     {
       id: 'v3',
-      title: 'مقياس أزمنة المدود وحركاتها 📏',
+      title: 'مقياس أزمنة المدود وحركاتها (2 و4 و6 حركات) 🎙️',
       duration: '05:10 دقيقة',
-      instructor: 'أ. عائشة محمود العلي',
-      summary: 'توضيح بكسر الأصابع وبسطها لممارسة ضبط 2، 4، و6 حركات في المدود المتصلة والمنفصلة واللازمة.',
-      videoEmbedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+      instructor: 'المعلمة المشرفة بالأكاديمية',
+      summary: 'توضيح مقادير المدود المتصلة والمنفصلة واللازمة مع بيان مقدار الحركة الواحدة وضبط النفس والترتيل.',
+      audioSurah: 1,
+      audioAyah: 7,
     },
   ];
 
@@ -387,50 +391,69 @@ export const TajweedGuideModal: React.FC<TajweedGuideModalProps> = ({ isOpen, on
             </div>
           )}
 
-          {/* TAB 3: VIDEO LESSONS */}
+          {/* TAB 3: LESSONS WITH AUDIO EXAMPLES */}
           {activeMainTab === 'videos' && (
             <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
               <div className="p-4 bg-emerald-50 dark:bg-slate-900 rounded-2xl border border-emerald-200 dark:border-slate-800">
                 <h4 className="font-extrabold text-emerald-900 dark:text-emerald-300 text-xs font-serif">
-                  فيديوهات وشروحات تجويد قصيرة للمراجعة والتسميع 🎬
+                  شروحات تجويدية مسموعة وتطبيقات عملية 🎙️
                 </h4>
                 <p className="text-[11px] text-emerald-800/80 dark:text-slate-300">
-                  فيديوهات تعليمية قصيرة ومباشرة تشرح التطبيق العملي لأحكام التجويد الأساسية.
+                  دروس صوتية تطبيقية لكبار علماء التجويد لضبط النطق الصحيح وتطبيق الأحكام.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                {VIDEO_LESSONS.map((vid) => (
-                  <div
-                    key={vid.id}
-                    className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-amber-400 text-slate-950 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-                          {vid.duration}
-                        </span>
-                        <span className="text-slate-500 font-bold">{vid.instructor}</span>
-                      </div>
-                      <h4 className="font-extrabold text-sm text-slate-900 dark:text-white font-serif">
-                        {vid.title}
-                      </h4>
-                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
-                        {vid.summary}
-                      </p>
-                    </div>
+                {VIDEO_LESSONS.map((vid) => {
+                  const isPlayingThis = playingRuleId === vid.id;
 
-                    <button
-                      onClick={() => {
-                        alert(`جاري تشغيل الشرح المرئي: ${vid.title}`);
-                      }}
-                      className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-md shrink-0 flex items-center gap-1.5"
+                  return (
+                    <div
+                      key={vid.id}
+                      className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4"
                     >
-                      <Play className="w-4 h-4 fill-white" />
-                      مشاهدة الفيديو التعليمي 🎬
-                    </button>
-                  </div>
-                ))}
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-amber-400 text-slate-950 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            {vid.duration}
+                          </span>
+                          <span className="text-slate-500 font-bold">{vid.instructor}</span>
+                        </div>
+                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-white font-serif">
+                          {vid.title}
+                        </h4>
+                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                          {vid.summary}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (isPlayingThis && audioObject) {
+                            audioObject.pause();
+                            setPlayingRuleId(null);
+                            return;
+                          }
+                          if (audioObject) audioObject.pause();
+                          const url = getAyahAudioUrl(vid.audioSurah, vid.audioAyah, 'husary');
+                          const audio = new Audio(url);
+                          audio.onended = () => setPlayingRuleId(null);
+                          audio.play().catch(e => console.warn(e));
+                          setAudioObject(audio);
+                          setPlayingRuleId(vid.id);
+                        }}
+                        className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-md shrink-0 flex items-center gap-1.5 transition-all ${
+                          isPlayingThis
+                            ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300'
+                            : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                        }`}
+                      >
+                        {isPlayingThis ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}
+                        <span>{isPlayingThis ? 'إيقاف الاستماع' : 'استماع للتطبيق العملي 🎧'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
