@@ -1,65 +1,69 @@
 // Multi-tier Gemini Service with Smart Intent Detection, Live REST fallback, and Comprehensive Islamic Knowledge Base
 
-const getApiKey = (): string => {
+// مفتاح شخصي اختياري يحفظه المستخدم في جهازه من إعدادات المساعد.
+// المفتاح الرسمي للأكاديمية محفوظ في السيرفر فقط (GEMINI_API_KEY في Vercel) وما بيوصل المتصفح.
+const getPersonalKey = (): string => {
   if (typeof window !== 'undefined') {
     const local = localStorage.getItem('gemini_api_key');
     if (local && local.trim().length > 10) return local.trim();
   }
-  return (
-    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-    (import.meta as any).env?.GEMINI_API_KEY ||
-    (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
-    ''
-  );
+  return '';
 };
 
-export async function askQuranAssistant(prompt: string, context?: string): Promise<string> {
-  const apiKey = getApiKey();
-  const trimmedPrompt = prompt.trim();
-
-  // If API Key is available, attempt live Gemini API call
-  if (apiKey) {
+async function askWithPersonalKey(apiKey: string, prompt: string, context?: string): Promise<string | null> {
+  const systemInstruction = `أنت "مساعد إتقان القرآني الذكي" - معلم قرآني ومستشار تربوي خبير في أحكام التجويد، التفسير الميسر، وطرق تحفيظ القرآن الكريم ومراجعته.
+أجب بدقة على السؤال المحدد فقط، بلغة عربية فصيحة وميسرة مع الاستشهاد بالآيات الكريمة والأمثلة.`;
+  const userText = context ? `السياق: ${context}\n\nسؤال المستخدم: ${prompt}` : `سؤال المستخدم: ${prompt}`;
+  for (const model of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
     try {
-      const systemInstruction = `
-أنت "مساعد إتقان القرآني الذكي" - معلم قرآني ومستشار تربوي خبير في أحكام التجويد، التفسير الميسر، وطرق تحفيظ القرآن الكريم ومراجعته.
-أجب بدقة متناهية على السؤال المحدد فقط، بلغة عربية فصيحة وميسرة مع الاستشهاد بالآيات الكريمة والأمثلة.
-إذا سُئلت عن تفسير سورة معينة (مثل الإخلاص، الفلق، الفاتحة، إلخ)، فسر تلك السورة تحديداً آية بآية مع بيان فضائلها.
-      `.trim();
-
-      const fullPrompt = context 
-        ? `${systemInstruction}\n\nالسياق: ${context}\n\nسؤال المستخدم: ${trimmedPrompt}`
-        : `${systemInstruction}\n\nسؤال المستخدم: ${trimmedPrompt}`;
-
-      // Try Gemini endpoints
-      const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-      for (const model of models) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: fullPrompt }] }],
-              generationConfig: { temperature: 0.6 }
-            })
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text && text.trim()) {
-              return text.trim();
-            }
-          }
-        } catch (e) {
-          console.warn(`Model ${model} fetch error:`, e);
-        }
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: 'user', parts: [{ text: userText }] }],
+          generationConfig: { temperature: 0.5 },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text && text.trim()) return text.trim();
       }
-    } catch (err) {
-      console.error('Gemini API call failed:', err);
+    } catch (e) {
+      console.warn(`Model ${model} fetch error:`, e);
     }
   }
+  return null;
+}
 
-  // Fallback to Smart Islamic Knowledge Engine
+export async function askQuranAssistant(prompt: string, context?: string): Promise<string> {
+  const trimmedPrompt = prompt.trim();
+
+  // 1) مفتاح شخصي لو المستخدم حاطّه
+  const personal = getPersonalKey();
+  if (personal) {
+    const r = await askWithPersonalKey(personal, trimmedPrompt, context);
+    if (r) return r;
+  }
+
+  // 2) عن طريق سيرفر الأكاديمية (المفتاح مخفي)
+  try {
+    const res = await fetch('/api/ai/ask', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'x-qa-client': '1' },
+      body: JSON.stringify({ prompt: trimmedPrompt.slice(0, 2000), context: context?.slice(0, 4000) }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.text) return data.text;
+    }
+  } catch {
+    /* بدون نت — نستعمل المحرك المحلي */
+  }
+
+  // 3) المحرك المحلي المدمج
   return getSmartQuranicKnowledgeResponse(trimmedPrompt);
 }
 

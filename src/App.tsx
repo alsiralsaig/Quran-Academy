@@ -9,15 +9,30 @@ import { StudentDashboard } from './components/student/StudentDashboard';
 import { QuranReader } from './components/quran/QuranReader';
 import { AzkarView } from './components/azkar/AzkarView';
 import { AiAssistantModal } from './components/ai/AiAssistantModal';
-import { Sparkles, BookOpen, Phone, Mail, MessageCircle } from 'lucide-react';
+import { Sparkles, BookOpen, Phone, Mail, MessageCircle, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { AuthScreen } from './components/auth/AuthScreen';
 
 function AppContent() {
-  const { activeRole } = useApp();
+  const { activeRole, isGuest, authReady, authRequest, toast } = useApp();
   const [currentTab, setCurrentTab] = useState<'workspace' | 'quran' | 'azkar'>('workspace');
   const [isAiOpen, setIsAiOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-['Cairo',sans-serif]">
+      {/* رسائل النظام (أخطاء الاتصال، نجاح العمليات) */}
+      {toast && (
+        <div
+          role="status"
+          data-testid="app-toast"
+          className={`fixed top-24 left-1/2 -translate-x-1/2 z-[70] max-w-[92vw] px-5 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 ${
+            toast.type === 'error' ? 'bg-rose-700 text-white' : toast.type === 'success' ? 'bg-emerald-800 text-white' : 'bg-slate-800 text-white'
+          }`}
+        >
+          {toast.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <Info className="w-4 h-4 shrink-0" />}
+          <span>{toast.text}</span>
+        </div>
+      )}
+
       {/* PWA Mobile Installation Prompt (Android / iOS) */}
       <PwaInstallPrompt />
 
@@ -42,9 +57,19 @@ function AppContent() {
         {/* VIEW 1: WORKSPACE / ROLE INTERFACES */}
         {currentTab === 'workspace' && (
           <div className="animate-in fade-in-50 duration-200">
-            {activeRole === 'admin' && <AdminDashboard />}
-            {activeRole === 'teacher' && <TeacherDashboard />}
-            {activeRole === 'student' && <StudentDashboard />}
+            {!authReady ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-emerald-800 font-bold text-sm">
+                <Loader2 className="w-5 h-5 animate-spin" /> جاري التحميل...
+              </div>
+            ) : isGuest ? (
+              <AuthScreen initialMode={authRequest || 'login'} />
+            ) : (
+              <>
+                {activeRole === 'admin' && <AdminDashboard />}
+                {activeRole === 'teacher' && <TeacherDashboard />}
+                {activeRole === 'student' && <StudentDashboard />}
+              </>
+            )}
           </div>
         )}
 

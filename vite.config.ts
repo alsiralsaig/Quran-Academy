@@ -4,14 +4,13 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import { defineConfig } from 'vite';
 
+// ملاحظة أمنية: مفتاح Gemini ما بيتحط في كود المتصفح أبداً — بيُستعمل من السيرفر فقط (server/ai.ts).
 export default defineConfig(() => {
-  const geminiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
-
   return {
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(geminiKey),
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(geminiKey),
-      'import.meta.env.GEMINI_API_KEY': JSON.stringify(geminiKey),
+      'process.env.GEMINI_API_KEY': JSON.stringify(''),
+      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(''),
+      'import.meta.env.GEMINI_API_KEY': JSON.stringify(''),
     },
     plugins: [
       react(),
@@ -20,6 +19,8 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png', 'banner.png'],
         workbox: {
+          // طلبات الـ API ما بتتخزّن ولا بتتحوّل لصفحة التطبيق
+          navigateFallbackDenylist: [/^\/api\//],
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
@@ -63,10 +64,17 @@ export default defineConfig(() => {
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      allowedHosts: true,
+      allowedHosts: true as const,
+      // في التطوير: طلبات ‎/api بتمشي لسيرفر الـ API المحلي (npm run dev:api)
+      proxy: {
+        '/api': { target: `http://127.0.0.1:${process.env.API_PORT || 3001}`, changeOrigin: false },
+      },
     },
     preview: {
-      allowedHosts: true,
+      allowedHosts: true as const,
+      proxy: {
+        '/api': { target: `http://127.0.0.1:${process.env.API_PORT || 3001}`, changeOrigin: false },
+      },
     },
   };
 });

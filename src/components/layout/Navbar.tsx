@@ -2,6 +2,7 @@ import React from 'react';
 import { BookOpen, Sparkles, HeartHandshake, Shield, GraduationCap, UserCheck, Bot, Globe } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { NotificationCenter } from '../common/NotificationCenter';
+import { AccountMenu } from '../auth/AccountMenu';
 
 interface NavbarProps {
   currentTab: 'workspace' | 'quran' | 'azkar';
@@ -10,7 +11,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenAiModal }) => {
-  const { activeRole, switchRole, language, setLanguage, teachers, students } = useApp();
+  const { language, setLanguage, isGuest } = useApp();
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-emerald-100 shadow-sm">
@@ -84,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
 
           {/* Right Action Controls: Role switcher and Language */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <NotificationCenter onTabChange={onTabChange} />
+            {!isGuest && <NotificationCenter onTabChange={onTabChange} />}
 
             {/* Language Switcher */}
             <button
@@ -96,58 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange, onOpenA
               <span>{language === 'ar' ? 'EN' : 'عربي'}</span>
             </button>
 
-            {/* Role Switcher Controls */}
-            <div className="bg-emerald-950 p-1 rounded-2xl border border-emerald-800/60 shadow-inner flex items-center gap-1">
-              <button
-                onClick={() => {
-                  onTabChange('workspace');
-                  switchRole('admin');
-                }}
-                title="بوابة الإدارة والمجلس التعليمي"
-                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  activeRole === 'admin'
-                    ? 'bg-emerald-500 text-emerald-950 shadow-md font-extrabold'
-                    : 'text-emerald-200/70 hover:text-white hover:bg-emerald-800/40'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>الإدارة</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onTabChange('workspace');
-                  const approvedTeacher = teachers.find(t => t.status === 'approved') || teachers[0];
-                  switchRole('teacher', approvedTeacher?.id);
-                }}
-                title="بوابة المعلمة"
-                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  activeRole === 'teacher'
-                    ? 'bg-emerald-500 text-emerald-950 shadow-md font-extrabold'
-                    : 'text-emerald-200/70 hover:text-white hover:bg-emerald-800/40'
-                }`}
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>المعلمة</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onTabChange('workspace');
-                  const student = students[0];
-                  switchRole('student', student?.id);
-                }}
-                title="بوابة الطالب/ولي الأمر"
-                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  activeRole === 'student'
-                    ? 'bg-emerald-500 text-emerald-950 shadow-md font-extrabold'
-                    : 'text-emerald-200/70 hover:text-white hover:bg-emerald-800/40'
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>الطالب</span>
-              </button>
-            </div>
+            <AccountMenu onGoWorkspace={() => onTabChange('workspace')} />
           </div>
 
         </div>

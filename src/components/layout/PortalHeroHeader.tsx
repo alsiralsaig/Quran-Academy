@@ -8,7 +8,14 @@ interface PortalHeroHeaderProps {
 }
 
 export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange, onOpenAiModal }) => {
-  const { activeRole, switchRole, teachers, students } = useApp();
+  const { isGuest, requestAuth, authRequest } = useApp();
+  // للزوار: البطاقات بتفتح شاشة الدخول/التسجيل المناسبة. المسجّلين بيشوفوا بوابتهم مباشرة.
+  const activeRole = authRequest === 'teacher' ? 'teacher' : authRequest === 'student' ? 'student' : authRequest === 'login' ? 'admin' : null;
+  const go = (mode: 'login' | 'student' | 'teacher') => {
+    onTabChange('workspace');
+    requestAuth(mode);
+    setTimeout(() => document.querySelector('[data-testid="auth-screen"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
 
   return (
     <div className="mb-8 space-y-6">
@@ -67,12 +74,12 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
         </div>
       </div>
 
-      {/* 3 Main Distinct Portal Switcher Cards (الإدارة، المعلمات، الطلاب) */}
+      {isGuest && (
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-700" />
-            <span>اختر البوابة والتطبيق المخصص:</span>
+            <span>ادخل لبوابتك أو أنشئ حساب جديد:</span>
           </h3>
           <span className="text-[11px] text-slate-500 font-medium">بوابات مستقلة ومحمية</span>
         </div>
@@ -81,10 +88,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
           
           {/* PORTAL 1: الإدارة والمجلس التعليمي */}
           <button
-            onClick={() => {
-              onTabChange('workspace');
-              switchRole('admin');
-            }}
+            onClick={() => go('login')}
             className={`p-5 rounded-2xl border-2 text-right transition-all duration-200 flex flex-col justify-between relative overflow-hidden group shadow-sm ${
               activeRole === 'admin'
                 ? 'bg-gradient-to-br from-emerald-800 to-teal-900 text-white border-amber-400 shadow-xl scale-[1.02]'
@@ -97,7 +101,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
               </div>
               {activeRole === 'admin' ? (
                 <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full">
-                  البوابة المفعلة الآن 🟢
+                  مختارة ✓
                 </span>
               ) : (
                 <span className="text-slate-400 text-xs flex items-center gap-1">
@@ -117,11 +121,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
 
           {/* PORTAL 2: بوابة المعلمات */}
           <button
-            onClick={() => {
-              onTabChange('workspace');
-              const approvedTeacher = teachers.find(t => t.status === 'approved') || teachers[0];
-              switchRole('teacher', approvedTeacher?.id);
-            }}
+            onClick={() => go('teacher')}
             className={`p-5 rounded-2xl border-2 text-right transition-all duration-200 flex flex-col justify-between relative overflow-hidden group shadow-sm ${
               activeRole === 'teacher'
                 ? 'bg-gradient-to-br from-emerald-800 to-teal-900 text-white border-amber-400 shadow-xl scale-[1.02]'
@@ -134,7 +134,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
               </div>
               {activeRole === 'teacher' ? (
                 <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full">
-                  البوابة المفعلة الآن 🟢
+                  مختارة ✓
                 </span>
               ) : (
                 <span className="text-slate-400 text-xs">واجهة التدريس</span>
@@ -151,11 +151,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
 
           {/* PORTAL 3: بوابة الطلاب وأولياء الأمور */}
           <button
-            onClick={() => {
-              onTabChange('workspace');
-              const student = students[0];
-              switchRole('student', student?.id);
-            }}
+            onClick={() => go('student')}
             className={`p-5 rounded-2xl border-2 text-right transition-all duration-200 flex flex-col justify-between relative overflow-hidden group shadow-sm ${
               activeRole === 'student'
                 ? 'bg-gradient-to-br from-emerald-800 to-teal-900 text-white border-amber-400 shadow-xl scale-[1.02]'
@@ -168,7 +164,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
               </div>
               {activeRole === 'student' ? (
                 <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full">
-                  البوابة المفعلة الآن 🟢
+                  مختارة ✓
                 </span>
               ) : (
                 <span className="text-slate-400 text-xs">واجهة الطالب</span>
@@ -185,6 +181,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
 
         </div>
       </div>
+      )}
 
     </div>
   );

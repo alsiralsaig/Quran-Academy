@@ -1,20 +1,57 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# أكاديمية القرآن الكريم — منصة إدارة حلقات التحفيظ
 
-# Run and deploy your AI Studio app
+منصة PWA بثلاث بوابات (الإدارة، المعلمات، الطلاب) + المصحف والأذكار والتفسير والمساعد الذكي.
 
-This contains everything you need to run your app locally.
+**الإصدار 2.0.0** — البيانات محفوظة في قاعدة **Neon (PostgreSQL)** مع تسجيل دخول حقيقي وصلاحيات.
 
-View your app in AI Studio: https://ai.studio/apps/1cca7f63-0b43-4846-80ff-9962f1d01ca8
+## البنية
 
-## Run Locally
+| الجزء | المكان |
+|---|---|
+| الواجهة (React + Vite) | `src/` |
+| سيرفر الـ API (دالة Vercel واحدة) | `api/index.ts` ← `server/app.ts` |
+| قاعدة البيانات + إنشاء الجداول تلقائياً | `server/db.ts`, `server/schema.ts` |
+| تسجيل الدخول (bcrypt + كوكي HttpOnly موقّع) | `server/auth.ts` |
+| المساعد الذكي (Gemini من السيرفر فقط) | `server/ai.ts` |
+| الاختبارات (Postgres حقيقي داخل الذاكرة PGlite) | `tests/api.test.ts` |
 
-**Prerequisites:**  Node.js
+## النشر على Vercel + Neon
 
+1. في Vercel: **Add New → Project** واختار المستودع (بيتعرف عليه كـ Vite تلقائياً).
+2. في **Settings → Environment Variables** أضف المتغيرات (شوف `.env.example`):
+   - `DATABASE_URL` — من Neon: **Connect** ← انسخ الـ connection string (pooled).
+   - `AUTH_SECRET` — نص عشوائي 32 حرف أو أكثر.
+   - `ADMIN_PHONE` و `ADMIN_PASSWORD` — حساب المدير (بيتنشأ أول مرة).
+   - `GEMINI_API_KEY` — اختياري للمساعد الذكي.
+3. **Deploy**. الجداول بتتنشأ تلقائياً مع أول طلب، والباقات والحسابات البنكية بتتزرع مرة واحدة.
+4. افتح الموقع ← **دخول** برقم المدير وكلمة السر ← غيّر كلمة السر من قائمة الحساب.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+> بديل: من Vercel → **Storage → Neon** بيربط القاعدة ويضيف `DATABASE_URL` تلقائياً.
+
+## الصلاحيات
+
+| | زائر | طالب | معلمة | الإدارة |
+|---|---|---|---|---|
+| الباقات، الحسابات البنكية، المعلمات المعتمدات | ✅ | ✅ | ✅ | ✅ |
+| الاشتراك ورفع الإيصال | — | ✅ | — | — |
+| رؤية الإيصال | — | إيصاله فقط | — | ✅ |
+| تسجيل الحصص | — | — | طلاب حلقتها فقط | ✅ |
+| اعتماد المعلمات والاشتراكات، الباقات، البنوك، الإعلانات | — | — | — | ✅ |
+| كلمة سر مؤقتة لمن نسي، إيقاف حساب، تنزيل نسخة | — | — | — | ✅ |
+
+- الدخول برقم التلفون (يقبل 09xxxxxxxx أو ‎+249… أو أرقام عربية، وأرقام دولية بالمفتاح).
+- قفل مؤقت 15 دقيقة بعد 5 محاولات غلط.
+- تغيير كلمة السر بيسجّل خروج الأجهزة التانية.
+- رصيد الحصص ما بيتجاوز حتى لو الزر اتضغط مرتين (خصم ذرّي في استعلام واحد).
+- صور الإيصالات بتتصغّر في الجهاز قبل الرفع (JPEG حوالي 1600px).
+
+## التطوير المحلي
+
+```bash
+npm install
+npm run dev:api   # سيرفر الـ API على 3001 — بدون DATABASE_URL بيستعمل PGlite في الذاكرة
+npm run dev       # الواجهة على 3000 (بتحوّل ‎/api للسيرفر)
+npm run check     # فحص الأنواع + الاختبارات
+```
+
+حساب المدير التجريبي محلياً (لو ما حددت ADMIN_PHONE): `0900000000` / `admin123`.

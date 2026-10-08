@@ -27,6 +27,7 @@ export interface TeacherProfile extends User {
   role: 'teacher';
   status: ApplicationStatus;
   rejectionReason?: string;
+  applicationSubmitted?: boolean; // قدّمت بيانات المؤهلات؟
   qualifications: TeacherQualifications;
   hourlyRate?: number;
   availableDays?: string[]; // e.g. ["الأحد", "الثلاثاء", "الخميس"]

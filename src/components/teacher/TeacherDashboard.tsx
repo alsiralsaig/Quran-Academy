@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   GraduationCap,
   Users,
@@ -53,13 +53,29 @@ export const TeacherDashboard: React.FC = () => {
   const [activeTeacherTab, setActiveTeacherTab] = useState<'logger' | 'students' | 'schedule' | 'group_study' | 'library' | 'history' | 'archive'>('logger');
 
   // Find corresponding teacher profile in database
-  const activeTeacher = teachers.find((t) => t.id === currentUser.id || t.email === currentUser.email) || teachers[0];
+  // ملف المعلمة الحالية (من قاعدة البيانات) — لو لسه ما اتحمّل نبني ملف مبدئي من الحساب
+  const activeTeacher: TeacherProfile =
+    teachers.find((t) => t.id === currentUser.id) ||
+    ({
+      ...currentUser,
+      role: 'teacher',
+      status: 'pending',
+      applicationSubmitted: false,
+      qualifications: { ijazat: [], memorizationParts: 0, experienceYears: 0, specialization: '', bio: '' },
+      availableDays: [],
+      availableTimes: '',
+      rating: 5,
+      studentCount: 0,
+    } as TeacherProfile);
 
   // Teacher Join Application form state (if applicant)
-  const [showAppForm, setShowAppForm] = useState(!activeTeacher || activeTeacher.status === 'pending');
-  const [applicantName, setApplicantName] = useState('');
-  const [applicantPhone, setApplicantPhone] = useState('');
-  const [applicantEmail, setApplicantEmail] = useState('');
+  const needsApplication = !activeTeacher.applicationSubmitted || activeTeacher.status === 'rejected';
+  const [showAppForm, setShowAppForm] = useState(needsApplication);
+  useEffect(() => setShowAppForm(needsApplication), [needsApplication]);
+  const [applicantName, setApplicantName] = useState(currentUser.name || '');
+  const [applicantPhone, setApplicantPhone] = useState(currentUser.phone || '');
+  const [applicantEmail, setApplicantEmail] = useState(currentUser.email || '');
+  const [appSubmitting, setAppSubmitting] = useState(false);
   const [applicantIjazat, setApplicantIjazat] = useState('');
   const [applicantParts, setApplicantParts] = useState(30);
   const [applicantExpYears, setApplicantExpYears] = useState(5);
@@ -98,11 +114,13 @@ export const TeacherDashboard: React.FC = () => {
   // Filter sessions logged by this teacher
   const mySessions = sessions.filter((ses) => ses.teacherId === activeTeacher?.id || ses.teacherName === activeTeacher?.name);
 
-  const handleSubmitApp = (e: React.FormEvent) => {
+  const handleSubmitApp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (appSubmitting) return;
     const ijazatArray = applicantIjazat.split('\n').filter((i) => i.trim() !== '');
-
-    submitTeacherApplication({
+    setAppSubmitting(true);
+    try {
+    await submitTeacherApplication({
       name: applicantName,
       email: applicantEmail,
       phone: applicantPhone,
@@ -119,9 +137,14 @@ export const TeacherDashboard: React.FC = () => {
 
     setSubmittedMsg('تم تقديم طلب الانضمام بنجاح! الطلب الآن قيد المراجعة والموافقة من الإدارة.');
     setShowAppForm(false);
+    } catch {
+      /* الرسالة بتظهر من النظام */
+    } finally {
+      setAppSubmitting(false);
+    }
   };
 
-  const handleRecordSessionSubmit = (e: React.FormEvent) => {
+  const handleRecordSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetSub = mySubscriptions.find((s) => s.id === selectedSubId);
     if (!targetSub) {
@@ -134,7 +157,8 @@ export const TeacherDashboard: React.FC = () => {
       return;
     }
 
-    recordSession({
+    try {
+    await recordSession({
       subscriptionId: targetSub.id,
       studentId: targetSub.studentId,
       studentName: targetSub.studentName,
@@ -158,6 +182,9 @@ export const TeacherDashboard: React.FC = () => {
     setTajweedNotes('');
     setHomework('');
     setTimeout(() => setRecordSuccessMsg(''), 5000);
+    } catch {
+      /* الرسالة بتظهر من النظام */
+    }
   };
 
   const handleCopyMeetingLink = () => {
@@ -167,7 +194,7 @@ export const TeacherDashboard: React.FC = () => {
   };
 
   // IF TEACHER IS PENDING / NOT APPROVED
-  if (activeTeacher && activeTeacher.status === 'pending') {
+  if (activeTeacher.status === 'pending' && activeTeacher.applicationSubmitted && !showAppForm) {
     return (
       <div className="max-w-3xl mx-auto space-y-6 text-center py-12 animate-in fade-in">
         <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-8 space-y-4 shadow-lg">
@@ -196,7 +223,7 @@ export const TeacherDashboard: React.FC = () => {
   }
 
   // IF NO TEACHER PROFILE OR REJECTED -> SHOW JOIN APPLICATION FORM
-  if (showAppForm || (activeTeacher && activeTeacher.status === 'rejected')) {
+  if (showAppForm) {
     return (
       <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in">
         <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-3xl p-8 shadow-xl text-center space-y-3">
@@ -208,6 +235,14 @@ export const TeacherDashboard: React.FC = () => {
             قدّمي بياناتكِ وإجازاتكِ في تحفيظ وتجويد القرآن الكريم للانضمام للحلقات والبدء بتدريس الطلاب.
           </p>
         </div>
+
+        {activeTeacher.status === 'rejected' && (
+          <div className="p-4 bg-rose-50 text-rose-900 text-sm rounded-2xl border border-rose-200">
+            <p className="font-bold">تمت مراجعة طلبكِ السابق ولم يُعتمد.</p>
+            {activeTeacher.rejectionReason && <p className="mt-1">السبب: {activeTeacher.rejectionReason}</p>}
+            <p className="mt-1 text-xs">يمكنكِ تعديل البيانات وإعادة التقديم.</p>
+          </div>
+        )}
 
         {submittedMsg && (
           <div className="p-4 bg-emerald-100 text-emerald-900 font-bold text-sm rounded-2xl border border-emerald-300 flex items-center gap-2">
@@ -238,9 +273,9 @@ export const TeacherDashboard: React.FC = () => {
                 type="text"
                 required
                 value={applicantPhone}
-                onChange={(e) => setApplicantPhone(e.target.value)}
-                placeholder="+966500000000"
-                className="w-full p-3 border rounded-xl"
+                readOnly
+                title="رقم الحساب — ما بيتغيّر"
+                className="w-full p-3 border rounded-xl bg-slate-50 text-slate-500"
                 dir="ltr"
               />
             </div>
@@ -248,7 +283,6 @@ export const TeacherDashboard: React.FC = () => {
               <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
               <input
                 type="email"
-                required
                 value={applicantEmail}
                 onChange={(e) => setApplicantEmail(e.target.value)}
                 placeholder="noura@gmail.com"
@@ -323,9 +357,10 @@ export const TeacherDashboard: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm rounded-2xl shadow-lg transition-all"
+            disabled={appSubmitting}
+            className="w-full py-3.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white font-bold text-sm rounded-2xl shadow-lg transition-all"
           >
-            تقديم طلب الانضمام للأكاديمية
+            {appSubmitting ? 'جاري الإرسال...' : 'تقديم طلب الانضمام للأكاديمية'}
           </button>
         </form>
       </div>

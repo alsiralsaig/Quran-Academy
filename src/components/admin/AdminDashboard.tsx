@@ -31,6 +31,7 @@ import {
   Sparkles,
   TrendingUp
 } from 'lucide-react';
+import { UsersManager } from './UsersManager';
 import { useApp } from '../../context/AppContext';
 import { Package, Subscription, BankAccount, TeacherProfile } from '../../types';
 import { ReceiptViewerModal } from '../common/ReceiptViewerModal';
@@ -56,8 +57,6 @@ export const AdminDashboard: React.FC = () => {
     addSessionsToSubscription,
     sessions,
     exportData,
-    importData,
-    resetToDefaults
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'payments' | 'teachers' | 'analytics' | 'packages' | 'sessions' | 'settings'>('payments');
@@ -188,22 +187,6 @@ export const AdminDashboard: React.FC = () => {
     setBankMsg('تم حفظ بيانات الحسابات البنكية بنجاح');
     showToast('تم تحديث بيانات الحسابات البنكية الرسمية');
     setTimeout(() => setBankMsg(''), 3000);
-  };
-
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        if (content) {
-          const ok = importData(content);
-          if (ok) showToast('تم استعادة بيانات النظام والنسخة الاحتياطية بنجاح!');
-          else showToast('حدث خطأ أثناء قراءة ملف النسخة الاحتياطية.', 'error');
-        }
-      };
-      reader.readAsText(file);
-    }
   };
 
   const handleApproveTeacherAction = (teacherId: string, name: string) => {
@@ -1018,58 +1001,29 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: BACKUP & DATA SETTINGS */}
+      {/* TAB 5: ACCOUNTS & DATA SETTINGS */}
       {activeTab === 'settings' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 max-w-2xl">
-          <div>
-            <h3 className="font-bold text-slate-900 text-lg">الملكية وحفظ وتصدير البيانات</h3>
-            <p className="text-xs text-slate-500">
-              بياناتك واشتراكات الطلاب وحصصهم ملكية خاصة بك، يمكنك تحميل نسخة احتياطية كامة أو استعادتها بأي وقت.
-            </p>
-          </div>
+        <div className="space-y-6">
+          <UsersManager />
 
-          <div className="space-y-4 pt-2">
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-2xl">
+            <div>
+              <h3 className="font-bold text-slate-900 text-lg">النسخ الاحتياطي</h3>
+              <p className="text-xs text-slate-500">
+                البيانات محفوظة في قاعدة بيانات Neon السحابية، وبتحتفظ تلقائياً بسجل للاستعادة. ممكن كمان تنزّل نسخة لجهازك في أي وقت.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
               <div>
-                <h4 className="font-bold text-slate-900 text-sm">تصدير كافة البيانات (JSON Backup)</h4>
-                <p className="text-xs text-slate-500">تحميل ملف شامل لكل الطلاب والمعلمات والاشتراكات والسجلات.</p>
+                <h4 className="font-bold text-slate-900 text-sm">تنزيل نسخة كاملة (JSON)</h4>
+                <p className="text-xs text-slate-500">الطلاب والمعلمات والباقات والاشتراكات والحصص — بدون كلمات السر وصور الإيصالات.</p>
               </div>
               <button
                 onClick={exportData}
-                className="px-4 py-2 bg-emerald-700 text-white font-bold text-xs rounded-xl hover:bg-emerald-800 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-emerald-700 text-white font-bold text-xs rounded-xl hover:bg-emerald-800 transition-colors flex items-center gap-2 shrink-0"
               >
                 <Download className="w-4 h-4" />
-                تصدير النسخة
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-slate-900 text-sm">استعادة نسخة احتياطية من ملف</h4>
-                <p className="text-xs text-slate-500">رفع ملف JSON تم تصديره سابقاً لإرجاع البيانات.</p>
-              </div>
-              <label className="px-4 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl hover:bg-slate-900 cursor-pointer transition-colors flex items-center gap-2">
-                <Upload className="w-4 h-4" />
-                رفع ملف الاستعادة
-                <input type="file" accept=".json" onChange={handleImportFile} className="hidden" />
-              </label>
-            </div>
-
-            <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-rose-900 text-sm">إعادة التعيين إلى البيانات الافتراضية</h4>
-                <p className="text-xs text-rose-600">سيقوم هذا باستعادة الوضع الأولي والتجريبي للنظام.</p>
-              </div>
-              <button
-                onClick={() => {
-                  if (confirm('هل أنت تأكد من إعادة النظام للبيانات الافتراضية؟')) {
-                    resetToDefaults();
-                    showToast('تمت إعادة النظام للبيانات الافتراضية', 'info');
-                  }
-                }}
-                className="px-4 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl hover:bg-rose-700 transition-colors"
-              >
-                إعادة التعيين
+                تنزيل
               </button>
             </div>
           </div>

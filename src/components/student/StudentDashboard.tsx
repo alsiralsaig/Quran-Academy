@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Package, TeacherProfile, Subscription } from '../../types';
-import { SAMPLE_RECEIPT } from '../../data/initialState';
+import { compressImage } from '../../lib/api';
 import { QuickReviewMode } from './QuickReviewMode';
 import { GamificationBadges } from './GamificationBadges';
 import { InteractiveSessionsCalendar } from '../calendar/InteractiveSessionsCalendar';
@@ -54,7 +54,6 @@ import { GripVertical, ArrowUp, ArrowDown, Move } from 'lucide-react';
 export const StudentDashboard: React.FC = () => {
   const {
     currentUser,
-    registerStudent,
     teachers,
     packages,
     bankAccounts,
@@ -64,9 +63,7 @@ export const StudentDashboard: React.FC = () => {
   } = useApp();
 
   // Active student account or fallback
-  const [studentName, setStudentName] = useState(currentUser.name || 'عبدالرحمن الشمري');
-  const [studentPhone, setStudentPhone] = useState(currentUser.phone || '+966 54 000 0001');
-  const [studentEmail, setStudentEmail] = useState(currentUser.email || 'student.abdulrahman@quran-academy.com');
+  const studentName = currentUser.name;
 
   // Subscription wizard state
   const [showSubscribeWizard, setShowSubscribeWizard] = useState(false);
@@ -75,7 +72,10 @@ export const StudentDashboard: React.FC = () => {
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherProfile | null>(
     teachers.find((t) => t.status === 'approved') || null
   );
-  const [receiptImage, setReceiptImage] = useState<string>(SAMPLE_RECEIPT);
+  const [receiptImage, setReceiptImage] = useState<string>('');
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
   const [copiedIban, setCopiedIban] = useState('');
   const [submitSuccessSub, setSubmitSuccessSub] = useState<Subscription | null>(null);
   const [isQuickReviewOpen, setIsQuickReviewOpen] = useState(false);
@@ -86,7 +86,7 @@ export const StudentDashboard: React.FC = () => {
 
   // Get active student's subscriptions
   const mySubscriptions = subscriptions.filter(
-    (s) => s.studentId === currentUser.id || s.studentName === currentUser.name || s.studentPhone === currentUser.phone
+    (s) => s.studentId === currentUser.id
   );
 
   const activeApprovedSub = mySubscriptions.find((s) => s.paymentStatus === 'approved');
@@ -121,7 +121,7 @@ export const StudentDashboard: React.FC = () => {
 
   // Filter student's sessions logs
   const mySessions = sessions.filter(
-    (ses) => ses.studentId === currentUser.id || ses.studentName === currentUser.name
+    (ses) => ses.studentId === currentUser.id
   );
 
   const handleCopy = (text: string) => {
@@ -130,37 +130,47 @@ export const StudentDashboard: React.FC = () => {
     setTimeout(() => setCopiedIban(''), 2500);
   };
 
-  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setReceiptImage(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+    e.target.value = '';
+    if (!file) return;
+    setReceiptError('');
+    setReceiptBusy(true);
+    try {
+      // تصغير الصورة قبل الرفع (أسرع على النت الضعيف وأوفر في المساحة)
+      setReceiptImage(await compressImage(file));
+    } catch (err: any) {
+      setReceiptError(err?.message || 'ما قدرنا نقرأ الصورة، جرّب صورة تانية');
+    } finally {
+      setReceiptBusy(false);
     }
   };
 
-  const handleFinalSubmitSubscription = () => {
-    if (!selectedPkg || !selectedTeacher) return;
-
-    // Register student in state
-    const std = registerStudent(studentName, studentEmail, studentPhone);
-
-    const newSub = subscribeToPackage({
-      studentId: std.id,
-      studentName: std.name,
-      studentPhone: std.phone,
-      teacherId: selectedTeacher.id,
-      packageId: selectedPkg.id,
-      receiptUrl: receiptImage,
-    });
-
-    setSubmitSuccessSub(newSub);
-    setShowSubscribeWizard(false);
-    setWizardStep(1);
+  const handleFinalSubmitSubscription = async () => {
+    if (!selectedPkg || !selectedTeacher || submitting) return;
+    if (!receiptImage) {
+      setReceiptError('لازم ترفع صورة إيصال التحويل أولاً');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const newSub = await subscribeToPackage({
+        studentId: currentUser.id,
+        studentName: currentUser.name,
+        studentPhone: currentUser.phone,
+        teacherId: selectedTeacher.id,
+        packageId: selectedPkg.id,
+        receiptUrl: receiptImage,
+      });
+      setSubmitSuccessSub(newSub);
+      setShowSubscribeWizard(false);
+      setWizardStep(1);
+      setReceiptImage('');
+    } catch (err: any) {
+      setReceiptError(err?.message || 'ما قدرنا نرسل الإيصال، جرّب تاني');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -582,6 +592,11 @@ export const StudentDashboard: React.FC = () => {
             {wizardStep === 2 && (
               <div className="space-y-4">
                 <h3 className="font-bold text-slate-900 text-lg">الخطوة 2: اختر المعلمة المفضلة لحلقتك</h3>
+                {teachers.filter((t) => t.status === 'approved').length === 0 && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    ما في معلمات متاحات حالياً — تواصل مع الإدارة على واتساب ‎+249 913 009 060
+                  </p>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto p-1">
                   {teachers
                     .filter((t) => t.status === 'approved')
@@ -639,13 +654,13 @@ export const StudentDashboard: React.FC = () => {
                         <span className="text-slate-500 text-[11px]">{acc.accountName}</span>
                       </div>
                       <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border font-mono">
-                        <span className="text-slate-800 font-bold" dir="ltr">{acc.iban}</span>
+                        <span className="text-slate-800 font-bold" dir="ltr">{acc.accountNumber || acc.iban}</span>
                         <button
-                          onClick={() => handleCopy(acc.iban)}
+                          onClick={() => handleCopy(acc.accountNumber || acc.iban)}
                           className="px-3 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-bold rounded-lg flex items-center gap-1"
                         >
                           <Copy className="w-3 h-3" />
-                          {copiedIban === acc.iban ? 'تم النسخ' : 'نسخ IBAN'}
+                          {copiedIban === (acc.accountNumber || acc.iban) ? 'تم النسخ' : 'نسخ الرقم'}
                         </button>
                       </div>
                     </div>
@@ -701,9 +716,12 @@ export const StudentDashboard: React.FC = () => {
                       htmlFor="receiptInput"
                       className="inline-block px-4 py-2 bg-emerald-100 text-emerald-800 font-bold rounded-xl cursor-pointer hover:bg-emerald-200"
                     >
-                      تغيير الصورة
+                      {receiptBusy ? 'جاري تجهيز الصورة...' : receiptImage ? 'تغيير الصورة' : 'اختيار صورة الإيصال'}
                     </label>
                   </div>
+                  {receiptError && (
+                    <p className="text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5 font-bold" role="alert">{receiptError}</p>
+                  )}
                 </div>
 
                 <div className="flex justify-between pt-4 border-t">
@@ -715,9 +733,10 @@ export const StudentDashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={handleFinalSubmitSubscription}
-                    className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-lg"
+                    disabled={submitting || receiptBusy || !receiptImage}
+                    className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg"
                   >
-                    تأكيد وإرسال الإيصال للإدارة
+                    {submitting ? 'جاري الإرسال...' : 'تأكيد وإرسال الإيصال للإدارة'}
                   </button>
                 </div>
               </div>

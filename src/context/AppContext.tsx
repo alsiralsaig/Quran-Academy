@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   User,
   UserRole,
@@ -7,20 +7,11 @@ import {
   Subscription,
   SessionRecord,
   BankAccount,
-  NotificationItem
+  NotificationItem,
 } from '../types';
-import {
-  INITIAL_ADMIN,
-  INITIAL_TEACHERS,
-  INITIAL_PACKAGES,
-  INITIAL_BANK_ACCOUNTS,
-  INITIAL_STUDENTS,
-  INITIAL_SUBSCRIPTIONS,
-  INITIAL_SESSIONS,
-  INITIAL_NOTIFICATIONS
-} from '../data/initialState';
-
+import { AVATAR_ADMIN, AVATAR_STUDENT_1, AVATAR_TEACHER_1 } from '../data/initialState';
 import { Language, translations } from '../locales/translations';
+import { api, ApiError, relativeTimeAr } from '../lib/api';
 
 export interface BroadcastMessage {
   id: string;
@@ -41,9 +32,33 @@ export interface BackupSnapshot {
   recordCount: number;
 }
 
+export type AuthMode = 'login' | 'student' | 'teacher';
+
+export interface RegisterInput {
+  role: 'student' | 'teacher';
+  name: string;
+  phone: string;
+  password: string;
+  email?: string;
+}
+
 interface AppContextType {
+  // ── الحساب والجلسة
   currentUser: User;
   activeRole: UserRole;
+  isGuest: boolean;
+  authReady: boolean;
+  loading: boolean;
+  login: (phone: string, password: string) => Promise<void>;
+  register: (data: RegisterInput) => Promise<void>;
+  logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  refresh: () => Promise<void>;
+  authRequest: AuthMode | null;
+  requestAuth: (mode: AuthMode | null) => void;
+  toast: { text: string; type: 'error' | 'success' | 'info' } | null;
+  showToast: (text: string, type?: 'error' | 'success' | 'info') => void;
+
   language: Language;
   setLanguage: (lang: Language) => void;
   t: typeof translations.ar;
@@ -56,7 +71,7 @@ interface AppContextType {
   notifications: NotificationItem[];
   broadcasts: BroadcastMessage[];
   backups: BackupSnapshot[];
-  
+
   // Notification & Broadcast Actions
   addNotification: (notif: Omit<NotificationItem, 'id' | 'createdAt' | 'isRead'>) => void;
   markAsRead: (id: string) => void;
@@ -64,11 +79,12 @@ interface AppContextType {
   clearNotifications: () => void;
   sendBroadcast: (broadcast: Omit<BroadcastMessage, 'id' | 'createdAt' | 'active'>) => void;
   dismissBroadcast: (id: string) => void;
-  
+  deactivateBroadcast: (id: string) => Promise<void>;
+
   // Actions
   switchRole: (role: UserRole, targetId?: string) => void;
   setCurrentUser: React.Dispatch<React.SetStateAction<User>>;
-  
+
   // Teacher Management
   submitTeacherApplication: (data: {
     name: string;
@@ -78,18 +94,19 @@ interface AppContextType {
     availableDays: string[];
     availableTimes: string;
     avatar?: string;
-  }) => string;
+  }) => Promise<string>;
   approveTeacher: (teacherId: string, hourlyRate?: number) => void;
   rejectTeacher: (teacherId: string, reason: string) => void;
-  
+  updateMyZoomLink: (link: string) => Promise<void>;
+
   // Package Management
   addPackage: (pkg: Omit<Package, 'id'>) => void;
   updatePackage: (pkg: Package) => void;
   deletePackage: (id: string) => void;
-  
+
   // Bank Account Management
   updateBankAccounts: (accounts: BankAccount[]) => void;
-  
+
   // Student & Subscription Management
   registerStudent: (name: string, email: string, phone: string) => User;
   subscribeToPackage: (data: {
@@ -99,14 +116,19 @@ interface AppContextType {
     teacherId: string;
     packageId: string;
     receiptUrl: string;
-  }) => Subscription;
+  }) => Promise<Subscription>;
   approveSubscription: (subscriptionId: string) => void;
   rejectSubscription: (subscriptionId: string, reason: string) => void;
   addSessionsToSubscription: (subscriptionId: string, extraCount: number) => void;
-  
+
   // Session Recording
-  recordSession: (data: Omit<SessionRecord, 'id'>) => void;
-  
+  recordSession: (data: Omit<SessionRecord, 'id'>) => Promise<void>;
+  addSessionRecord: (data: Omit<SessionRecord, 'id'>) => Promise<void>;
+
+  // Users (admin)
+  resetUserPassword: (userId: string) => Promise<{ tempPassword: string; name: string; phone: string }>;
+  setUserActive: (userId: string, active: boolean) => Promise<void>;
+
   // Backup & Restore
   exportData: () => void;
   importData: (jsonString: string) => boolean;
@@ -117,13 +139,35 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'etqan_quran_academy_v4';
+const GUEST: User = { id: '', name: 'زائر', email: '', phone: '', role: 'student', createdAt: '' };
+const DISMISSED_KEY = 'etqan_dismissed_broadcasts';
+const CACHE_KEY = 'etqan_public_cache_v1';
+
+function defaultAvatar(role: UserRole) {
+  return role === 'admin' ? AVATAR_ADMIN : role === 'teacher' ? AVATAR_TEACHER_1 : AVATAR_STUDENT_1;
+}
+
+function withAvatar<T extends { role: UserRole; avatar?: string }>(u: T): T {
+  return { ...u, avatar: u.avatar || defaultAvatar(u.role) };
+}
+
+function loadDismissed(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load initial or stored state
-  const [activeRole, setActiveRole] = useState<UserRole>('admin');
   const [language, setLanguageState] = useState<Language>('ar');
-  const [currentUser, setCurrentUser] = useState<User>(INITIAL_ADMIN);
+  const [currentUser, setCurrentUser] = useState<User>(GUEST);
+  const [isGuest, setIsGuest] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [authRequest, requestAuth] = useState<AuthMode | null>(null);
+  const [toast, setToast] = useState<AppContextType['toast']>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
 
   const t = translations[language] || translations.ar;
 
@@ -149,566 +193,321 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         document.documentElement.dir = 'rtl';
         document.documentElement.lang = 'ar';
       }
+      // تنظيف البيانات التجريبية القديمة المحفوظة في المتصفح (قبل الربط بقاعدة البيانات)
+      ['etqan_quran_academy_v1', 'etqan_quran_academy_v2', 'etqan_quran_academy_v3'].forEach((k) =>
+        localStorage.removeItem(k)
+      );
     } catch {}
   }, []);
-  const [teachers, setTeachers] = useState<TeacherProfile[]>(INITIAL_TEACHERS);
-  const [packages, setPackages] = useState<Package[]>(INITIAL_PACKAGES);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(INITIAL_BANK_ACCOUNTS);
-  const [students, setStudents] = useState<User[]>(INITIAL_STUDENTS);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
-  const [sessions, setSessions] = useState<SessionRecord[]>(INITIAL_SESSIONS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([
-    {
-      id: 'bcast_1',
-      title: 'تنبيه عاجل: تعديل مواعيد حلقات المغرب والتحفيظ الصباحي',
-      content: 'تود إدارة الأكاديمية إحاطتكم بحلول جدول الاختبارات النصفية للطلاب بدءاً من الأحد القادم. يُرجى مراجعة الجدول.',
-      priority: 'urgent',
-      createdAt: 'اليوم، 10:00 ص',
-      targetRole: 'all',
-      active: true,
-    },
-  ]);
-  const [backups, setBackups] = useState<BackupSnapshot[]>([
-    {
-      id: 'snap_1',
-      name: 'النسخة الاحتياطية الدورية - الأسبوعية',
-      size: '2.4 MB',
-      createdAt: '2026-10-01 02:00',
-      type: 'auto',
-      recordCount: 142,
-    },
-    {
-      id: 'snap_2',
-      name: 'نسخة احتياطية قبل تعديل الباقات',
-      size: '1.9 MB',
-      createdAt: '2026-09-25 14:30',
-      type: 'manual',
-      recordCount: 128,
-    },
-  ]);
 
-  // Initialize from LocalStorage or Fresh Clean Defaults
-  useEffect(() => {
-    try {
-      // Purge old cached states from previous versions
-      localStorage.removeItem('etqan_quran_academy_v1');
-      localStorage.removeItem('etqan_quran_academy_v2');
-      localStorage.removeItem('etqan_quran_academy_v3');
+  const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
+  const [backups, setBackups] = useState<BackupSnapshot[]>([]);
 
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Validate if saved data contains old numbers
-        const rawString = JSON.stringify(parsed);
-        if (rawString.includes('1234567') || rawString.includes('501234') || rawString.includes('unsplash')) {
-          localStorage.removeItem(STORAGE_KEY);
-          setTeachers(INITIAL_TEACHERS);
-          setPackages(INITIAL_PACKAGES);
-          setBankAccounts(INITIAL_BANK_ACCOUNTS);
-          setStudents(INITIAL_STUDENTS);
-          setSubscriptions(INITIAL_SUBSCRIPTIONS);
-          setSessions(INITIAL_SESSIONS);
-          setNotifications(INITIAL_NOTIFICATIONS);
-          return;
-        }
-
-        if (parsed.teachers) setTeachers(parsed.teachers);
-        if (parsed.packages) setPackages(parsed.packages);
-        if (parsed.bankAccounts) setBankAccounts(parsed.bankAccounts);
-        if (parsed.students) setStudents(parsed.students);
-        if (parsed.subscriptions) setSubscriptions(parsed.subscriptions);
-        if (parsed.sessions) setSessions(parsed.sessions);
-        if (parsed.notifications) setNotifications(parsed.notifications);
-      } else {
-        setTeachers(INITIAL_TEACHERS);
-        setPackages(INITIAL_PACKAGES);
-        setBankAccounts(INITIAL_BANK_ACCOUNTS);
-        setStudents(INITIAL_STUDENTS);
-        setSubscriptions(INITIAL_SUBSCRIPTIONS);
-        setSessions(INITIAL_SESSIONS);
-        setNotifications(INITIAL_NOTIFICATIONS);
-      }
-    } catch (err) {
-      console.error('Failed to load local storage state:', err);
-    }
+  const showToast = useCallback((text: string, type: 'error' | 'success' | 'info' = 'error') => {
+    setToast({ text, type });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), type === 'error' ? 6000 : 3500);
   }, []);
 
-  // Save changes to LocalStorage
+  const applyBootstrap = useCallback((b: any) => {
+    const user: User | null = b.user ? withAvatar(b.user) : null;
+    setCurrentUser(user || GUEST);
+    setIsGuest(!user);
+    setTeachers((b.teachers || []).map(withAvatar));
+    setPackages(b.packages || []);
+    setBankAccounts(b.bankAccounts || []);
+    setStudents((b.students || []).map(withAvatar));
+    setSubscriptions(b.subscriptions || []);
+    setSessions(b.sessions || []);
+    setNotifications(
+      (b.notifications || []).map((n: any) => ({ ...n, createdAt: relativeTimeAr(n.createdAt) }))
+    );
+    const dismissed = loadDismissed();
+    setBroadcasts(
+      (b.broadcasts || []).map((x: any) => ({
+        ...x,
+        createdAt: relativeTimeAr(x.createdAt),
+        active: x.active && !dismissed.includes(x.id),
+      }))
+    );
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ packages: b.packages, bankAccounts: b.bankAccounts }));
+    } catch {}
+  }, []);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      applyBootstrap(await api('GET', '/bootstrap'));
+    } catch (e) {
+      if (e instanceof ApiError && e.status !== 0) showToast(e.message);
+      else if (e instanceof ApiError) showToast(e.message, 'info');
+    } finally {
+      setLoading(false);
+      setAuthReady(true);
+    }
+  }, [applyBootstrap, showToast]);
+
+  // أول تحميل: نعرض الباقات المحفوظة فوراً ثم نجيب البيانات الحقيقية
   useEffect(() => {
     try {
-      const stateToSave = {
-        teachers,
-        packages,
-        bankAccounts,
-        students,
-        subscriptions,
-        sessions,
-        notifications,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-    } catch (err) {
-      console.error('Failed to save to local storage:', err);
-    }
-  }, [teachers, packages, bankAccounts, students, subscriptions, sessions, notifications]);
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (cached?.packages) setPackages(cached.packages);
+      if (cached?.bankAccounts) setBankAccounts(cached.bankAccounts);
+    } catch {}
+    refresh();
+  }, [refresh]);
+
+  // تحديث تلقائي لما المستخدم يرجع للتطبيق
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && !isGuest) refresh();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [isGuest, refresh]);
+
+  /** ينفّذ عملية على السيرفر ثم يحدّث البيانات؛ الأخطاء بتظهر كرسالة */
+  const run = useCallback(
+    async <T,>(fn: () => Promise<T>, opts: { refresh?: boolean; rethrow?: boolean } = {}): Promise<T | undefined> => {
+      try {
+        const r = await fn();
+        if (opts.refresh !== false) await refresh();
+        return r;
+      } catch (e: any) {
+        showToast(e?.message || 'حصل خطأ');
+        if (opts.rethrow) throw e;
+        return undefined;
+      }
+    },
+    [refresh, showToast]
+  );
+
+  // ── الحساب
+  const login = async (phone: string, password: string) => {
+    await api('POST', '/auth/login', { phone, password });
+    requestAuth(null);
+    await refresh();
+  };
+
+  const register = async (data: RegisterInput) => {
+    await api('POST', '/auth/register', data);
+    requestAuth(null);
+    await refresh();
+  };
+
+  const logout = async () => {
+    try {
+      await api('POST', '/auth/logout');
+    } catch {}
+    setCurrentUser(GUEST);
+    setIsGuest(true);
+    setStudents([]);
+    setSubscriptions([]);
+    setSessions([]);
+    setNotifications([]);
+    await refresh();
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    await api('POST', '/auth/password', { currentPassword, newPassword });
+  };
+
+  const activeRole: UserRole = currentUser.role;
 
   // Notification Helper Actions
   const addNotification = (notif: Omit<NotificationItem, 'id' | 'createdAt' | 'isRead'>) => {
-    const newNotif: NotificationItem = {
-      ...notif,
-      id: `notif_${Date.now()}`,
-      createdAt: 'الآن',
-      isRead: false,
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
+    // الإشعارات الحقيقية بينشئها السيرفر؛ دي للعرض المحلي فقط
+    setNotifications((prev) => [
+      { ...notif, id: `local_${Date.now()}`, createdAt: 'الآن', isRead: false },
+      ...prev,
+    ]);
   };
 
   const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    if (!id.startsWith('local_')) run(() => api('POST', `/notifications/${id}/read`), { refresh: false });
   };
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    run(() => api('POST', '/notifications/read-all'), { refresh: false });
   };
 
   const clearNotifications = () => {
     setNotifications([]);
+    run(() => api('DELETE', '/notifications'), { refresh: false });
   };
 
-  // Switch role helper
-  const switchRole = (role: UserRole, targetId?: string) => {
-    setActiveRole(role);
-    if (role === 'admin') {
-      setCurrentUser(INITIAL_ADMIN);
-    } else if (role === 'teacher') {
-      const teacher = teachers.find((t) => t.id === targetId) || teachers[0];
-      if (teacher) {
-        setCurrentUser({
-          id: teacher.id,
-          name: teacher.name,
-          email: teacher.email,
-          phone: teacher.phone,
-          role: 'teacher',
-          avatar: teacher.avatar,
-          createdAt: teacher.createdAt,
-        });
-      }
-    } else if (role === 'student') {
-      const student = students.find((s) => s.id === targetId) || students[0];
-      if (student) {
-        setCurrentUser(student);
-      }
-    }
+  // الأدوار ما بتتبدّل يدوياً بعد الآن — كل مستخدم بيشوف بوابته حسب حسابه
+  const switchRole = (role: UserRole) => {
+    if (isGuest) requestAuth(role === 'student' ? 'student' : role === 'teacher' ? 'teacher' : 'login');
   };
 
-  // Submit Teacher Join Application
-  const submitTeacherApplication = (data: {
-    name: string;
-    email: string;
-    phone: string;
-    qualifications: TeacherProfile['qualifications'];
-    availableDays: string[];
-    availableTimes: string;
-    avatar?: string;
-  }): string => {
-    const newId = `teacher_${Date.now()}`;
-    const newTeacher: TeacherProfile = {
-      id: newId,
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      role: 'teacher',
-      status: 'pending',
-      avatar: data.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.name)}`,
-      createdAt: new Date().toISOString().split('T')[0],
-      qualifications: data.qualifications,
-      hourlyRate: 100,
-      availableDays: data.availableDays,
-      availableTimes: data.availableTimes,
-      rating: 5.0,
-      studentCount: 0,
-    };
-
-    setTeachers((prev) => [newTeacher, ...prev]);
-
-    // Send notification to Admin
-    addNotification({
-      recipientRole: 'admin',
-      title: 'طلب انضمام معلمة جديد',
-      message: `قدمت الأستاذة (${data.name}) طلب انضمام جديد للكادر التعليمي وبانتظار المراجعة والتدقيق.`,
-      type: 'warning',
-      linkTab: 'workspace',
-    });
-
-    return newId;
+  const submitTeacherApplication: AppContextType['submitTeacherApplication'] = async (data) => {
+    await run(
+      () =>
+        api('POST', '/teachers/application', {
+          name: data.name || undefined,
+          email: data.email,
+          qualifications: data.qualifications,
+          availableDays: data.availableDays,
+          availableTimes: data.availableTimes,
+        }),
+      { rethrow: true }
+    );
+    return currentUser.id;
   };
 
-  // Approve Teacher by Admin
   const approveTeacher = (teacherId: string, hourlyRate?: number) => {
-    const target = teachers.find((t) => t.id === teacherId);
-    setTeachers((prev) =>
-      prev.map((t) =>
-        t.id === teacherId
-          ? {
-              ...t,
-              status: 'approved',
-              hourlyRate: hourlyRate || t.hourlyRate || 100,
-              rejectionReason: undefined,
-            }
-          : t
-      )
-    );
-
-    if (target) {
-      addNotification({
-        recipientRole: 'teacher',
-        recipientId: target.id,
-        title: 'اعتماد حساب المعلمة',
-        message: `مرحباً بكِ أستاذة (${target.name})! تمت الموافقة على طلب انضمامكِ لأكاديمية إتقان، ويمكنكِ الآن البدء بتدريس الطلاب وتسجيل التقييمات.`,
-        type: 'success',
-        linkTab: 'workspace',
-      });
-    }
+    run(() => api('POST', `/teachers/${teacherId}/approve`, { hourlyRate }));
   };
 
-  // Reject Teacher by Admin
   const rejectTeacher = (teacherId: string, reason: string) => {
-    const target = teachers.find((t) => t.id === teacherId);
-    setTeachers((prev) =>
-      prev.map((t) =>
-        t.id === teacherId
-          ? {
-              ...t,
-              status: 'rejected',
-              rejectionReason: reason,
-            }
-          : t
-      )
-    );
+    run(() => api('POST', `/teachers/${teacherId}/reject`, { reason }));
+  };
 
-    if (target) {
-      addNotification({
-        recipientRole: 'teacher',
-        recipientId: target.id,
-        title: 'تحديث حالة طلب الانضمام',
-        message: `تمت مراجعة طلب الانضمام. السبب: ${reason}`,
-        type: 'warning',
-        linkTab: 'workspace',
-      });
-    }
+  const updateMyZoomLink = async (link: string) => {
+    await run(() => api('PATCH', '/teachers/me', { zoomLink: link }), { rethrow: true });
   };
 
   // Package Management
   const addPackage = (pkg: Omit<Package, 'id'>) => {
-    const newPkg: Package = {
-      ...pkg,
-      id: `pkg_${Date.now()}`,
-    };
-    setPackages((prev) => [...prev, newPkg]);
+    run(() => api('POST', '/packages', pkg));
   };
 
   const updatePackage = (updatedPkg: Package) => {
     setPackages((prev) => prev.map((p) => (p.id === updatedPkg.id ? updatedPkg : p)));
+    run(() => api('PUT', `/packages/${updatedPkg.id}`, updatedPkg));
   };
 
   const deletePackage = (id: string) => {
     setPackages((prev) => prev.filter((p) => p.id !== id));
+    run(() => api('DELETE', `/packages/${id}`));
   };
 
   const updateBankAccounts = (accounts: BankAccount[]) => {
     setBankAccounts(accounts);
+    run(() => api('PUT', '/settings/bank-accounts', { accounts }));
   };
 
-  // Register Student
-  const registerStudent = (name: string, email: string, phone: string): User => {
-    const existing = students.find((s) => s.email === email || s.phone === phone);
-    if (existing) return existing;
+  // التسجيل بقى من شاشة الدخول — دي بترجّع الحساب الحالي بس
+  const registerStudent = (): User => currentUser;
 
-    const newStudent: User = {
-      id: `std_${Date.now()}`,
-      name,
-      email,
-      phone,
-      role: 'student',
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-
-    setStudents((prev) => [...prev, newStudent]);
-    return newStudent;
+  const subscribeToPackage: AppContextType['subscribeToPackage'] = async (data) => {
+    const res = await run(
+      () =>
+        api<{ subscription: Subscription }>('POST', '/subscriptions', {
+          teacherId: data.teacherId,
+          packageId: data.packageId,
+          receipt: data.receiptUrl,
+        }),
+      { rethrow: true }
+    );
+    return res!.subscription;
   };
 
-  // Student Subscribes to Package with Bank Transfer Receipt
-  const subscribeToPackage = (data: {
-    studentId: string;
-    studentName: string;
-    studentPhone: string;
-    teacherId: string;
-    packageId: string;
-    receiptUrl: string;
-  }): Subscription => {
-    const pkg = packages.find((p) => p.id === data.packageId) || packages[0];
-    const teacher = teachers.find((t) => t.id === data.teacherId) || teachers[0];
-
-    const newSub: Subscription = {
-      id: `sub_${Date.now()}`,
-      studentId: data.studentId,
-      studentName: data.studentName,
-      studentPhone: data.studentPhone,
-      teacherId: teacher.id,
-      teacherName: teacher.name,
-      packageId: pkg.id,
-      packageName: pkg.name,
-      totalSessions: pkg.sessionCount,
-      usedSessions: 0,
-      remainingSessions: pkg.sessionCount,
-      amountPaid: pkg.price,
-      currency: pkg.currency,
-      paymentReceiptUrl: data.receiptUrl,
-      paymentStatus: 'pending',
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-
-    setSubscriptions((prev) => [newSub, ...prev]);
-
-    // Send notification to Admin
-    addNotification({
-      recipientRole: 'admin',
-      title: 'إيصال تحويل بنكي جديد',
-      message: `قام الطالب (${data.studentName}) برفع إيصال تحويل بنكي لباقة (${pkg.name}) وبانتظار الفحص والاعتماد.`,
-      type: 'warning',
-      linkTab: 'workspace',
-    });
-
-    return newSub;
-  };
-
-  // Admin approves subscription bank transfer
   const approveSubscription = (subscriptionId: string) => {
-    const now = new Date();
-    const expiry = new Date();
-    expiry.setMonth(now.getMonth() + 2); // Valid for 2 months
-
-    const subTarget = subscriptions.find((s) => s.id === subscriptionId);
-
-    setSubscriptions((prev) =>
-      prev.map((sub) => {
-        if (sub.id === subscriptionId) {
-          // Increment teacher student count
-          setTeachers((tList) =>
-            tList.map((t) =>
-              t.id === sub.teacherId ? { ...t, studentCount: t.studentCount + 1 } : t
-            )
-          );
-
-          return {
-            ...sub,
-            paymentStatus: 'approved',
-            startDate: now.toISOString().split('T')[0],
-            expiryDate: expiry.toISOString().split('T')[0],
-            rejectionReason: undefined,
-          };
-        }
-        return sub;
-      })
-    );
-
-    if (subTarget) {
-      addNotification({
-        recipientRole: 'student',
-        recipientId: subTarget.studentId,
-        title: 'تأكيد تفعيل الباقة',
-        message: `تمت مراجعة التحويل وتفعيل (${subTarget.packageName}) بنجاح! يمكنك الآن الالتحاق بحلقة المعلمة (${subTarget.teacherName}).`,
-        type: 'success',
-        linkTab: 'workspace',
-      });
-    }
+    run(() => api('POST', `/subscriptions/${subscriptionId}/approve`));
   };
 
-  // Admin rejects subscription receipt
   const rejectSubscription = (subscriptionId: string, reason: string) => {
-    const subTarget = subscriptions.find((s) => s.id === subscriptionId);
-
-    setSubscriptions((prev) =>
-      prev.map((sub) => {
-        if (sub.id === subscriptionId) {
-          return {
-            ...sub,
-            paymentStatus: 'rejected',
-            rejectionReason: reason,
-          };
-        }
-        return sub;
-      })
-    );
-
-    if (subTarget) {
-      addNotification({
-        recipientRole: 'student',
-        recipientId: subTarget.studentId,
-        title: 'تحديث حالة التحويل البنكي',
-        message: `لم يتم اعتماد الإيصال. السبب: ${reason}`,
-        type: 'warning',
-        linkTab: 'workspace',
-      });
-    }
+    run(() => api('POST', `/subscriptions/${subscriptionId}/reject`, { reason }));
   };
 
-  // Add bonus or manual sessions
   const addSessionsToSubscription = (subscriptionId: string, extraCount: number) => {
-    setSubscriptions((prev) =>
-      prev.map((sub) =>
-        sub.id === subscriptionId
-          ? {
-              ...sub,
-              totalSessions: sub.totalSessions + extraCount,
-              remainingSessions: sub.remainingSessions + extraCount,
-            }
-          : sub
-      )
-    );
+    run(() => api('POST', `/subscriptions/${subscriptionId}/add-sessions`, { count: extraCount }));
   };
 
-  // Teacher Records a completed class (deducts 1 session from student remaining quota)
-  const recordSession = (data: Omit<SessionRecord, 'id'>) => {
-    const newSession: SessionRecord = {
-      ...data,
-      id: `ses_${Date.now()}`,
-    };
-
-    setSessions((prev) => [newSession, ...prev]);
-
-    // Update Subscription remaining and used sessions
-    setSubscriptions((prev) =>
-      prev.map((sub) => {
-        if (sub.id === data.subscriptionId) {
-          const newUsed = sub.usedSessions + 1;
-          const newRemaining = Math.max(0, sub.totalSessions - newUsed);
-
-          // Send notification to student
-          addNotification({
-            recipientRole: 'student',
-            recipientId: sub.studentId,
-            title: 'تقييم جديد وحصة منجزة',
-            message: `قامت المعلمة (${data.teacherName}) بتسجيل تقييم (${data.rating} نجوم) لحصة اليوم (${data.surahName}). المتبقي من رصيدك: ${newRemaining} حصة.`,
-            type: 'info',
-            linkTab: 'workspace',
-          });
-
-          return {
-            ...sub,
-            usedSessions: newUsed,
-            remainingSessions: newRemaining,
-          };
-        }
-        return sub;
-      })
-    );
+  const recordSession = async (data: Omit<SessionRecord, 'id'>) => {
+    await run(() => api('POST', '/sessions', data), { rethrow: true });
   };
 
-  // Backup & Restore
+  const resetUserPassword = async (userId: string) => {
+    return (await run(() => api('POST', `/admin/users/${userId}/reset-password`), { refresh: false, rethrow: true }))!;
+  };
+
+  const setUserActive = async (userId: string, active: boolean) => {
+    await run(() => api('POST', `/admin/users/${userId}/active`, { active }), { rethrow: true });
+  };
+
+  // Backup & Restore — التصدير من قاعدة البيانات مباشرة
   const exportData = () => {
-    const backupData = {
-      teachers,
-      packages,
-      bankAccounts,
-      students,
-      subscriptions,
-      sessions,
-      exportedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Etqan_Quran_Academy_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    run(
+      async () => {
+        const data = await api('GET', '/admin/export');
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Etqan_Quran_Academy_Backup_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        const count = ['users', 'subscriptions', 'sessions'].reduce((n, k) => n + ((data as any)[k]?.length || 0), 0);
+        setBackups((prev) => [
+          {
+            id: `dl_${Date.now()}`,
+            name: 'نسخة تم تنزيلها لجهازك',
+            size: `${(blob.size / 1024).toFixed(0)} KB`,
+            createdAt: new Date().toLocaleString('ar-EG'),
+            type: 'manual',
+            recordCount: count,
+          },
+          ...prev,
+        ]);
+        showToast('تم تنزيل النسخة الاحتياطية لجهازك', 'success');
+      },
+      { refresh: false }
+    );
   };
 
-  const importData = (jsonString: string): boolean => {
-    try {
-      const parsed = JSON.parse(jsonString);
-      if (parsed.teachers && Array.isArray(parsed.teachers)) setTeachers(parsed.teachers);
-      if (parsed.packages && Array.isArray(parsed.packages)) setPackages(parsed.packages);
-      if (parsed.bankAccounts && Array.isArray(parsed.bankAccounts)) setBankAccounts(parsed.bankAccounts);
-      if (parsed.students && Array.isArray(parsed.students)) setStudents(parsed.students);
-      if (parsed.subscriptions && Array.isArray(parsed.subscriptions)) setSubscriptions(parsed.subscriptions);
-      if (parsed.sessions && Array.isArray(parsed.sessions)) setSessions(parsed.sessions);
-      return true;
-    } catch (e) {
-      console.error('Import failed:', e);
-      return false;
-    }
+  const importData = (): boolean => {
+    showToast('الاستعادة من ملف غير متاحة بعد الربط بقاعدة البيانات — قاعدة Neon بتحتفظ بسجل تلقائي للاستعادة', 'info');
+    return false;
   };
 
   const sendBroadcast = (broadcast: Omit<BroadcastMessage, 'id' | 'createdAt' | 'active'>) => {
-    const newBcast: BroadcastMessage = {
-      ...broadcast,
-      id: `bcast_${Date.now()}`,
-      createdAt: 'الآن',
-      active: true,
-    };
-    setBroadcasts((prev) => [newBcast, ...prev]);
-
-    // Also send standard notification to all target recipients
-    addNotification({
-      recipientRole: broadcast.targetRole === 'all' ? undefined : (broadcast.targetRole as any),
-      title: `📣 إعلان عاجل: ${broadcast.title}`,
-      message: broadcast.content,
-      type: broadcast.priority === 'urgent' ? 'warning' : 'info',
-      linkTab: 'workspace',
-    });
+    run(() => api('POST', '/broadcasts', broadcast));
   };
 
   const dismissBroadcast = (id: string) => {
-    setBroadcasts((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, active: false } : b))
-    );
+    setBroadcasts((prev) => prev.map((b) => (b.id === id ? { ...b, active: false } : b)));
+    try {
+      const d = loadDismissed();
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify([...d, id].slice(-100)));
+    } catch {}
   };
 
-  const createCloudBackupSnapshot = (type: 'manual' | 'auto' = 'manual'): BackupSnapshot => {
-    const totalRecords =
-      teachers.length + students.length + subscriptions.length + sessions.length;
-    const newSnap: BackupSnapshot = {
-      id: `snap_${Date.now()}`,
-      name: type === 'manual' ? `نسخة احتياطية يدوية - ${new Date().toLocaleDateString('ar-SA')}` : `نسخة سحابية تلقائية`,
-      size: `${(totalRecords * 0.02 + 1.2).toFixed(1)} MB`,
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      type,
-      recordCount: totalRecords,
+  const deactivateBroadcast = async (id: string) => {
+    await run(() => api('DELETE', `/broadcasts/${id}`));
+  };
+
+  const createCloudBackupSnapshot = (): BackupSnapshot => {
+    exportData();
+    return {
+      id: `dl_${Date.now()}`,
+      name: 'نسخة تم تنزيلها لجهازك',
+      size: '',
+      createdAt: new Date().toLocaleString('ar-EG'),
+      type: 'manual',
+      recordCount: 0,
     };
-
-    setBackups((prev) => [newSnap, ...prev]);
-    return newSnap;
   };
 
-  const restoreFromSnapshot = (snapshotId: string): boolean => {
-    const target = backups.find((b) => b.id === snapshotId);
-    if (!target) return false;
-
-    // Simulate restore confirmation & state refresh
-    addNotification({
-      recipientRole: 'admin',
-      title: 'تمت استعادة البيانات السحابية',
-      message: `تمت استعادة قواعد البيانات بنجاح من النسخة الاحتياطية (${target.name}) المؤرخة في ${target.createdAt}.`,
-      type: 'success',
-      linkTab: 'workspace',
-    });
-
-    return true;
+  const restoreFromSnapshot = (): boolean => {
+    showToast('الاستعادة بتتم من لوحة Neon (Restore) لحماية البيانات من الحذف بالغلط', 'info');
+    return false;
   };
 
   const resetToDefaults = () => {
-    setTeachers(INITIAL_TEACHERS);
-    setPackages(INITIAL_PACKAGES);
-    setBankAccounts(INITIAL_BANK_ACCOUNTS);
-    setStudents(INITIAL_STUDENTS);
-    setSubscriptions(INITIAL_SUBSCRIPTIONS);
-    setSessions(INITIAL_SESSIONS);
-    localStorage.removeItem(STORAGE_KEY);
+    showToast('إعادة التعيين معطّلة لحماية البيانات الحقيقية', 'info');
   };
 
   return (
@@ -716,6 +515,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         activeRole,
+        isGuest,
+        authReady,
+        loading,
+        login,
+        register,
+        logout,
+        changePassword,
+        refresh,
+        authRequest,
+        requestAuth,
+        toast,
+        showToast,
         language,
         setLanguage,
         t,
@@ -734,11 +545,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearNotifications,
         sendBroadcast,
         dismissBroadcast,
+        deactivateBroadcast,
         switchRole,
         setCurrentUser,
         submitTeacherApplication,
         approveTeacher,
         rejectTeacher,
+        updateMyZoomLink,
         addPackage,
         updatePackage,
         deletePackage,
@@ -749,6 +562,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rejectSubscription,
         addSessionsToSubscription,
         recordSession,
+        addSessionRecord: recordSession,
+        resetUserPassword,
+        setUserActive,
         exportData,
         importData,
         resetToDefaults,

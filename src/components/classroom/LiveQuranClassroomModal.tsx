@@ -68,7 +68,8 @@ export const LiveQuranClassroomModal: React.FC<LiveQuranClassroomModalProps> = (
   };
 
   const handleSaveSession = () => {
-    const activeSub = subscriptions[0];
+    // التسجيل في قاعدة البيانات للمعلمة فقط (السيرفر بيرفض أي دور تاني)
+    const activeSub = activeRole === 'teacher' ? subscriptions[0] : undefined;
     if (activeSub) {
       addSessionRecord({
         subscriptionId: activeSub.id,
@@ -85,7 +86,7 @@ export const LiveQuranClassroomModal: React.FC<LiveQuranClassroomModalProps> = (
         tajweedNotes: tajweedNotes,
         homework: homework,
         attendance: 'present'
-      });
+      }).catch(() => {});
       setIsSaved(true);
       setTimeout(() => {
         setIsSaved(false);

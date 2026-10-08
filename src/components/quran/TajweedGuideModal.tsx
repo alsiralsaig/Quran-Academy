@@ -429,17 +429,17 @@ export const TajweedGuideModal: React.FC<TajweedGuideModalProps> = ({ isOpen, on
 
                       <button
                         onClick={() => {
-                          if (isPlayingThis && audioObject) {
-                            audioObject.pause();
+                          if (isPlayingThis && audioObj) {
+                            audioObj.pause();
                             setPlayingRuleId(null);
                             return;
                           }
-                          if (audioObject) audioObject.pause();
+                          if (audioObj) audioObj.pause();
                           const url = getAyahAudioUrl(vid.audioSurah, vid.audioAyah, 'husary');
                           const audio = new Audio(url);
                           audio.onended = () => setPlayingRuleId(null);
                           audio.play().catch(e => console.warn(e));
-                          setAudioObject(audio);
+                          setAudioObj(audio);
                           setPlayingRuleId(vid.id);
                         }}
                         className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-md shrink-0 flex items-center gap-1.5 transition-all ${

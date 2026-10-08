@@ -16,7 +16,8 @@ export async function fetchAiTafsirForAyah(
     // Try calling local server proxy route if available
     const response = await fetch('/api/gemini/tafsir', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'x-qa-client': '1' },
       body: JSON.stringify({ surahName, ayahNumber, ayahText }),
     });
 
