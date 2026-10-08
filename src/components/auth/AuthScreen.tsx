@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LogIn, UserPlus, GraduationCap, Phone, Lock, User as UserIcon, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { useApp, type AuthMode } from '../../context/AppContext';
+import { APP_FLAVOR, FLAVOR_INFO } from '../../lib/appFlavor';
 
 const TABS: { id: AuthMode; label: string; icon: React.ReactNode }[] = [
   { id: 'login', label: 'تسجيل الدخول', icon: <LogIn className="w-4 h-4" /> },
@@ -8,9 +9,15 @@ const TABS: { id: AuthMode; label: string; icon: React.ReactNode }[] = [
   { id: 'teacher', label: 'انضمام كمعلمة', icon: <GraduationCap className="w-4 h-4" /> },
 ];
 
+// في تطبيق منفصل: تبويب الدخول + تسجيل الدور ده بس (الإدارة: دخول بس)
+const tabsFor = () => (APP_FLAVOR ? TABS.filter((t) => t.id === 'login' || t.id === APP_FLAVOR) : TABS);
+
 export const AuthScreen: React.FC<{ initialMode?: AuthMode }> = ({ initialMode = 'login' }) => {
   const { login, register } = useApp();
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const tabs = tabsFor();
+  const allowed = (m: AuthMode): AuthMode => (tabs.some((t) => t.id === m) ? m : 'login');
+  const [mode, setModeRaw] = useState<AuthMode>(allowed(initialMode));
+  const setMode = (m: AuthMode) => setModeRaw(allowed(m));
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -19,7 +26,7 @@ export const AuthScreen: React.FC<{ initialMode?: AuthMode }> = ({ initialMode =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => setMode(initialMode), [initialMode]);
+  useEffect(() => setMode(initialMode), [initialMode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setError(''), [mode]);
 
   const isRegister = mode !== 'login';
@@ -53,7 +60,7 @@ export const AuthScreen: React.FC<{ initialMode?: AuthMode }> = ({ initialMode =
     <div className="max-w-md mx-auto my-6 bg-white rounded-3xl shadow-xl border border-emerald-100 overflow-hidden" data-testid="auth-screen">
       <div className="bg-gradient-to-l from-emerald-800 to-teal-900 p-6 text-white text-center">
         <img src="/logo.png" alt="" className="w-14 h-14 mx-auto rounded-2xl bg-white p-1 mb-3" />
-        <h2 className="text-xl font-extrabold font-serif">أكاديمية القرآن الكريم</h2>
+        <h2 className="text-xl font-extrabold font-serif">{APP_FLAVOR ? FLAVOR_INFO[APP_FLAVOR].name : 'أكاديمية القرآن الكريم'}</h2>
         <p className="text-emerald-100/80 text-xs mt-1">
           {mode === 'login' && 'ادخل برقم تلفونك وكلمة السر'}
           {mode === 'student' && 'أنشئ حساب الطالب أو ولي الأمر للاشتراك في الحلقات'}
@@ -61,8 +68,9 @@ export const AuthScreen: React.FC<{ initialMode?: AuthMode }> = ({ initialMode =
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 p-1.5 bg-slate-100 m-4 rounded-2xl" role="tablist">
-        {TABS.map((t) => (
+      {tabs.length > 1 ? (
+      <div className={`grid ${tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 p-1.5 bg-slate-100 m-4 rounded-2xl`} role="tablist">
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -78,6 +86,9 @@ export const AuthScreen: React.FC<{ initialMode?: AuthMode }> = ({ initialMode =
           </button>
         ))}
       </div>
+      ) : (
+        <div className="h-4" />
+      )}
 
       <form onSubmit={submit} className="px-6 pb-6 space-y-3">
         {isRegister && (

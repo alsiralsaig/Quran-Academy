@@ -11,6 +11,26 @@ import { AzkarView } from './components/azkar/AzkarView';
 import { AiAssistantModal } from './components/ai/AiAssistantModal';
 import { Sparkles, BookOpen, Phone, Mail, MessageCircle, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { AuthScreen } from './components/auth/AuthScreen';
+import { APP_FLAVOR, FLAVOR_INFO, IS_NATIVE_APP } from './lib/appFlavor';
+
+/** حساب دوره غير دور التطبيق المفتوح (مثلاً طالب فتح تطبيق المعلمة) */
+function WrongAppNotice() {
+  const { currentUser, logout } = useApp();
+  const flavor = APP_FLAVOR!;
+  const right = FLAVOR_INFO[currentUser.role as keyof typeof FLAVOR_INFO];
+  return (
+    <div className="max-w-md mx-auto my-8 bg-white rounded-3xl border border-amber-200 shadow-xl p-6 text-center space-y-3" data-testid="wrong-app">
+      <div className="text-4xl">🔒</div>
+      <h2 className="font-extrabold text-slate-900 text-lg">ده تطبيق {FLAVOR_INFO[flavor].portal}</h2>
+      <p className="text-sm text-slate-600 leading-relaxed">
+        إنت داخل بحساب {right ? right.portal : currentUser.role} ({currentUser.name}). نزّل تطبيق «{right?.name}» واستعمله، أو اطلع وادخل بحساب {FLAVOR_INFO[flavor].portal}.
+      </p>
+      <button onClick={() => logout()} className="w-full py-3 rounded-2xl bg-emerald-700 text-white font-black text-sm">
+        تسجيل الخروج
+      </button>
+    </div>
+  );
+}
 
 function AppContent() {
   const { activeRole, isGuest, authReady, authRequest, toast } = useApp();
@@ -34,7 +54,7 @@ function AppContent() {
       )}
 
       {/* PWA Mobile Installation Prompt (Android / iOS) */}
-      <PwaInstallPrompt />
+      {!IS_NATIVE_APP && <PwaInstallPrompt />}
 
       {/* Top Header Navbar */}
       <Navbar
@@ -63,6 +83,8 @@ function AppContent() {
               </div>
             ) : isGuest ? (
               <AuthScreen initialMode={authRequest || 'login'} />
+            ) : APP_FLAVOR && activeRole !== APP_FLAVOR ? (
+              <WrongAppNotice />
             ) : (
               <>
                 {activeRole === 'admin' && <AdminDashboard />}

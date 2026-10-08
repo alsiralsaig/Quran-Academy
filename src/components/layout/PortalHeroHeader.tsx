@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield, GraduationCap, UserCheck, BookOpen, HeartHandshake, Sparkles, Award, Users, Lock } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { APP_FLAVOR, FLAVOR_INFO } from '../../lib/appFlavor';
 
 interface PortalHeroHeaderProps {
   onTabChange: (tab: 'workspace' | 'quran' | 'azkar') => void;
@@ -39,7 +40,11 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
                 منصة متكاملة لإدارة حلقات تحفيظ القرآن الكريم
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-serif text-white tracking-tight">
-                أكاديمية <span className="text-amber-400">القرآن الكريم</span>
+                {APP_FLAVOR ? (
+                  <>تطبيق <span className="text-amber-400">{FLAVOR_INFO[APP_FLAVOR].name}</span></>
+                ) : (
+                  <>أكاديمية <span className="text-amber-400">القرآن الكريم</span></>
+                )}
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
                 معاً نحو جيل يحفظ كتاب الله ويتقن تلاوته وترتيله تحت إشراف نخبة من المعلمات المجازات.
@@ -74,7 +79,7 @@ export const PortalHeroHeader: React.FC<PortalHeroHeaderProps> = ({ onTabChange,
         </div>
       </div>
 
-      {isGuest && (
+      {isGuest && !APP_FLAVOR && (
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
