@@ -129,3 +129,73 @@ test('البيانات الشخصية: تتحفظ في القاعدة وتخص �
   const exp = await c.admin.ok('GET', '/admin/export');
   assert.ok(exp.userData.some((r: any) => r.key === 'ayah_notes'));
 });
+
+test('مواعيد الحصص: المعلم يجدول، والطالب المعتمد بس بيشوف ويتنبّه', async () => {
+  const c = await setup();
+  const when = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  // قبل الاعتماد: الطالب ما من طلابه
+  assert.equal((await c.teacher.call('POST', '/schedule', { title: 'حصة', date: when, time: '5:00 م', studentId: c.studentId })).status, 400);
+  await c.admin.ok('POST', `/subscriptions/${c.subId}/approve`);
+  await c.teacher.ok('PATCH', '/teachers/me', { zoomLink: 'https://zoom.us/j/777' });
+  assert.equal((await c.student.call('POST', '/schedule', { title: 'x', date: when, time: '1' })).status, 403);
+  assert.equal((await c.teacher.call('POST', '/schedule', { title: 'x', date: 'بكرة', time: '1' })).status, 400);
+
+  const one = await c.teacher.ok('POST', '/schedule', { title: 'تسميع البقرة', date: when, time: '5:00 م', studentId: c.studentId });
+  await c.teacher.ok('POST', '/schedule', { title: 'حلقة جماعية', date: when, time: '8:00 م' });
+
+  const sb = await c.student.ok('GET', '/bootstrap');
+  assert.equal(sb.scheduled.length, 2);
+  assert.equal(sb.scheduled[0].meetingUrl, 'https://zoom.us/j/777');
+  assert.ok(sb.notifications.some((n: any) => n.title === 'موعد حصة جديد 📅'));
+  assert.equal((await c.stranger.ok('GET', '/bootstrap')).scheduled.length, 0);
+
+  // الطالب ما بيمسح، المعلم بيمسح
+  assert.equal((await c.student.call('DELETE', `/schedule/${one.scheduled.id}`)).status, 403);
+  await c.teacher.ok('DELETE', `/schedule/${one.scheduled.id}`);
+  assert.equal((await c.student.ok('GET', '/bootstrap')).scheduled.length, 1);
+});
+
+test('المكتبة: المعلم يضيف روابط https، الكل يشوف، المالك بس يمسح', async () => {
+  const c = await setup();
+  assert.equal((await c.student.call('POST', '/library', { title: 'x', kind: 'pdf', url: 'https://a.com/x.pdf' })).status, 403);
+  assert.equal((await c.teacher.call('POST', '/library', { title: 'x', kind: 'pdf', url: 'javascript:alert(1)' })).status, 400);
+  const it = await c.teacher.ok('POST', '/library', { title: 'متن الجزرية', kind: 'pdf', url: 'https://example.com/jazari.pdf', description: 'للحفظ' });
+  const sb = await c.student.ok('GET', '/bootstrap');
+  assert.ok(sb.library.some((x: any) => x.id === it.item.id && x.ownerName === 'أ. سارة'));
+  assert.equal((await c.student.call('DELETE', `/library/${it.item.id}`)).status, 403);
+  await c.admin.ok('DELETE', `/library/${it.item.id}`);
+});
+
+test('الختمة الجماعية: حجز الأجزاء بدون تكرار، وإكمال، وإشعار عند الختم', async () => {
+  const c = await setup();
+  const k = (await c.teacher.ok('POST', '/khatm', { title: 'ختمة رمضان' })).khatm;
+  // الطالب قبل الاعتماد ما بيشوف ولا بيحجز
+  assert.equal((await c.student.ok('GET', '/bootstrap')).khatms.length, 0);
+  assert.equal((await c.student.call('POST', `/khatm/${k.id}/claim`, { juz: 1 })).status, 403);
+  await c.admin.ok('POST', `/subscriptions/${c.subId}/approve`);
+  assert.equal((await c.student.ok('GET', '/bootstrap')).khatms.length, 1);
+
+  await c.student.ok('POST', `/khatm/${k.id}/claim`, { juz: 1 });
+  assert.equal((await c.teacher.call('POST', `/khatm/${k.id}/claim`, { juz: 1 })).status, 409, 'محجوز');
+  assert.equal((await c.student.call('POST', `/khatm/${k.id}/claim`, { juz: 31 })).status, 400);
+  // الغريب ما بيقدر
+  assert.equal((await c.stranger.call('POST', `/khatm/${k.id}/claim`, { juz: 2 })).status, 403);
+
+  let r = await c.student.ok('POST', `/khatm/${k.id}/done`, { juz: 1 });
+  assert.equal(r.khatm.parts['1'].done, true);
+  assert.equal(r.khatm.parts['1'].name, 'أحمد');
+
+  // المعلم يحجز الباقي ويكملهم → إشعار ختم
+  for (let j = 2; j <= 30; j++) {
+    await c.teacher.ok('POST', `/khatm/${k.id}/claim`, { juz: j });
+    r = await c.teacher.ok('POST', `/khatm/${k.id}/done`, { juz: j });
+  }
+  assert.equal(Object.values(r.khatm.parts).filter((p: any) => p.done).length, 30);
+  assert.ok((await c.teacher.ok('GET', '/bootstrap')).notifications.some((n: any) => n.title === 'اكتملت الختمة 🎉'));
+
+  // التحرير: الطالب ما بيحرر جزء غيره
+  assert.equal((await c.student.call('POST', `/khatm/${k.id}/release`, { juz: 5 })).status, 403);
+  await c.student.ok('POST', `/khatm/${k.id}/release`, { juz: 1 });
+  await c.teacher.ok('DELETE', `/khatm/${k.id}`);
+  assert.equal((await c.student.ok('GET', '/bootstrap')).khatms.length, 0);
+});

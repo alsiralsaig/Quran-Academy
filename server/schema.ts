@@ -3,7 +3,7 @@ import type { Db } from './db.js';
 import { hashPassword, normalizePhone } from './auth.js';
 import { DEFAULT_PACKAGES, DEFAULT_BANK_ACCOUNTS } from './seed.js';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS schema_meta (
@@ -126,6 +126,35 @@ const DDL: string[] = [
      value JSONB NOT NULL,
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      PRIMARY KEY (user_id, key)
+   )`,
+  `CREATE TABLE IF NOT EXISTS scheduled_sessions (
+     id TEXT PRIMARY KEY,
+     teacher_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     student_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+     title TEXT NOT NULL,
+     date DATE NOT NULL,
+     time TEXT NOT NULL,
+     note TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS scheduled_teacher_idx ON scheduled_sessions(teacher_id, date)`,
+  `CREATE TABLE IF NOT EXISTS library_items (
+     id TEXT PRIMARY KEY,
+     owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     title TEXT NOT NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('pdf','video','audio','link')),
+     url TEXT NOT NULL,
+     description TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE TABLE IF NOT EXISTS khatm_campaigns (
+     id TEXT PRIMARY KEY,
+     teacher_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     title TEXT NOT NULL,
+     target_date DATE,
+     parts JSONB NOT NULL DEFAULT '{}'::jsonb,
+     active BOOLEAN NOT NULL DEFAULT true,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
   `CREATE TABLE IF NOT EXISTS rate_limits (
      key TEXT NOT NULL,

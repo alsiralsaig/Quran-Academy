@@ -25,7 +25,6 @@ import { compressImage } from '../../lib/api';
 import { QuickReviewMode } from './QuickReviewMode';
 import { GamificationBadges } from './GamificationBadges';
 import { InteractiveSessionsCalendar } from '../calendar/InteractiveSessionsCalendar';
-import { GroupStudyRoom } from '../teacher/GroupStudyRoom';
 import { DigitalLibrary } from '../library/DigitalLibrary';
 import { MonthlyPerformanceReport } from '../reports/MonthlyPerformanceReport';
 import { QuranPomodoroTimer } from '../pomodoro/QuranPomodoroTimer';
@@ -107,7 +106,6 @@ export const StudentDashboard: React.FC = () => {
     'calligraphy',
     'analytics',
     'quiz',
-    'group_room',
     'library',
     'recitation',
     'pomodoro',
@@ -421,9 +419,6 @@ export const StudentDashboard: React.FC = () => {
           } else if (widgetId === 'quiz') {
             ComponentToRender = <SurahQuizModule studentName={studentName} />;
             widgetTitle = 'اختبارات السور والتجويد الذكية';
-          } else if (widgetId === 'group_room') {
-            ComponentToRender = <GroupStudyRoom userRole="student" userName={studentName} />;
-            widgetTitle = 'غرفة القراءة الجماعية';
           } else if (widgetId === 'library') {
             ComponentToRender = <DigitalLibrary userRole="student" userName={studentName} />;
             widgetTitle = 'المكتبة الرقمية والموارد';

@@ -27,7 +27,6 @@ import { useApp } from '../../context/AppContext';
 import { TeacherProfile, Subscription, SessionRecord } from '../../types';
 import { ALL_SURAHS } from '../../data/quranData';
 import { InteractiveSessionsCalendar } from '../calendar/InteractiveSessionsCalendar';
-import { GroupStudyRoom } from './GroupStudyRoom';
 import { BroadcastAnnouncementBanner } from '../common/BroadcastAnnouncementBanner';
 import { DigitalLibrary } from '../library/DigitalLibrary';
 import { TeacherNotificationSender } from '../notifications/TeacherNotificationSender';
@@ -51,7 +50,7 @@ export const TeacherDashboard: React.FC = () => {
   } = useApp();
 
   // Active Teacher Navigation Tab
-  const [activeTeacherTab, setActiveTeacherTab] = useState<'logger' | 'students' | 'schedule' | 'group_study' | 'library' | 'history' | 'archive'>('logger');
+  const [activeTeacherTab, setActiveTeacherTab] = useState<'logger' | 'students' | 'schedule' | 'library' | 'history' | 'archive'>('logger');
 
   // Find corresponding teacher profile in database
   // ملف المعلمة الحالية (من قاعدة البيانات) — لو لسه ما اتحمّل نبني ملف مبدئي من الحساب
@@ -532,18 +531,6 @@ export const TeacherDashboard: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTeacherTab('group_study')}
-          className={`px-5 py-3 border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTeacherTab === 'group_study'
-              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-xl font-extrabold'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Users className="w-4 h-4 text-emerald-600" />
-          المراجعة الجماعية (Study Room)
-        </button>
-
-        <button
           onClick={() => setActiveTeacherTab('library')}
           className={`px-5 py-3 border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTeacherTab === 'library'
@@ -881,6 +868,9 @@ export const TeacherDashboard: React.FC = () => {
           {/* INTERACTIVE SESSIONS CALENDAR & 15m REMINDERS */}
           <InteractiveSessionsCalendar userRole="teacher" userName={activeTeacher.name} sessions={mySessions} />
 
+          {/* مواعيد الحصص القادمة (حقيقية) */}
+          <LiveSessionScheduler userRole="teacher" userName={activeTeacher.name} />
+
           {/* Live Meeting Room Management Card */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
@@ -950,11 +940,6 @@ export const TeacherDashboard: React.FC = () => {
           </div>
 
         </div>
-      )}
-
-      {/* TAB: GROUP STUDY ROOM */}
-      {activeTeacherTab === 'group_study' && (
-        <GroupStudyRoom userRole="teacher" userName={activeTeacher.name} />
       )}
 
       {/* TAB: DIGITAL LIBRARY */}
@@ -1029,9 +1014,6 @@ export const TeacherDashboard: React.FC = () => {
 
       {/* TEACHER AI AUDIO RECITATION ANALYTICS MODULE */}
       <AudioAnalyticsModule teacherName={activeTeacher.name} />
-
-      {/* LIVE VIDEO SESSION SCHEDULER & MEETING LINK GENERATOR */}
-      <LiveSessionScheduler userRole="teacher" userName={activeTeacher.name} />
 
       {/* GROUP KHATM PLANNER & JUZ DISTRIBUTION */}
       <GroupKhatmPlanner userRole="teacher" userName={activeTeacher.name} />

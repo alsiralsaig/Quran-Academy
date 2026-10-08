@@ -1,272 +1,139 @@
-import React, { useState } from 'react';
-import {
-  Video,
-  Calendar,
-  Clock,
-  Plus,
-  Link,
-  Users,
-  CheckCircle2,
-  ExternalLink,
-  Copy,
-  Check,
-  Play,
-  Sparkles,
-  BookOpen,
-  Trash2,
-  Bell
-} from 'lucide-react';
-import { UserRole } from '../../types';
-
-export interface ScheduledLiveSession {
-  id: string;
-  title: string;
-  surahTopic: string;
-  teacherName: string;
-  studentGroup: string;
-  date: string; // YYYY-MM-DD
-  time: string; // e.g. "05:00 م"
-  durationMinutes: number;
-  meetingUrl: string;
-  status: 'upcoming' | 'live' | 'completed';
-}
-
-const INITIAL_SCHEDULED_SESSIONS: ScheduledLiveSession[] = [
-  {
-    id: 'live_1',
-    title: 'حلقة التسميع والتجويد المباشرة - سورة البقرة',
-    surahTopic: 'سورة البقرة (الآيات 255-260)',
-    teacherName: 'أ. عائشة محمود العلي',
-    studentGroup: 'حلقة صفوة الحفاظ',
-    date: '2026-10-03',
-    time: '05:00 م',
-    durationMinutes: 45,
-    meetingUrl: 'https://meet.jit.si/itqan_quran_room_255',
-    status: 'upcoming',
-  },
-  {
-    id: 'live_2',
-    title: 'مراجعة أواخر سورة آل عمران وتصحيح التلاوة',
-    surahTopic: 'سورة آل عمران (الآيات 190-200)',
-    teacherName: 'أ. خديجة العمري',
-    studentGroup: 'حلقة أمهات المؤمنين',
-    date: '2026-10-04',
-    time: '07:30 م',
-    durationMinutes: 60,
-    meetingUrl: 'https://meet.jit.si/itqan_quran_room_190',
-    status: 'upcoming',
-  },
-];
+import React, { useMemo, useState } from 'react';
+import { CalendarClock, Video, Trash2, Plus, Users, User as UserIcon } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
 interface LiveSessionSchedulerProps {
-  userRole: UserRole;
+  userRole: 'teacher' | 'student' | 'admin';
   userName: string;
 }
 
-export const LiveSessionScheduler: React.FC<LiveSessionSchedulerProps> = ({ userRole, userName }) => {
-  const [sessions, setSessions] = useState<ScheduledLiveSession[]>(INITIAL_SCHEDULED_SESSIONS);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
-  // New session modal
-  const [showModal, setShowModal] = useState<boolean>(false);
-  const [titleInput, setTitleInput] = useState<string>('حلقة تصحيح التلاوة والتسميع المباشر 🎙️');
-  const [surahInput, setSurahInput] = useState<string>('سورة البقرة');
-  const [groupInput, setGroupInput] = useState<string>('جميع الطالبات');
-  const [dateInput, setDateInput] = useState<string>('2026-10-03');
-  const [timeInput, setTimeInput] = useState<string>('06:00 م');
-  const [durationInput, setDurationInput] = useState<number>(45);
+/** مواعيد الحصص القادمة — حقيقية من قاعدة البيانات. المعلم يجدول، والطالب يشوف مواعيده ويدخل بالرابط. */
+export const LiveSessionScheduler: React.FC<LiveSessionSchedulerProps> = ({ userRole }) => {
+  const { scheduled, subscriptions, currentUser, scheduleSession, deleteScheduled } = useApp();
+  const isTeacher = userRole === 'teacher';
 
-  // Copy Meeting URL to clipboard
-  const handleCopyLink = (id: string, url: string) => {
-    navigator.clipboard.writeText(url);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 3000);
-  };
+  const myStudents = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          subscriptions
+            .filter((s) => s.teacherId === currentUser.id && s.paymentStatus === 'approved')
+            .map((s) => [s.studentId, s.studentName])
+        ).entries()
+      ),
+    [subscriptions, currentUser.id]
+  );
 
-  // Create new live session with auto-generated meeting room link
-  const handleCreateSession = (e: React.FormEvent) => {
+  const [title, setTitle] = useState('حصة تسميع وتجويد');
+  const [date, setDate] = useState(todayStr());
+  const [time, setTime] = useState('17:00');
+  const [studentId, setStudentId] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const upcoming = scheduled.filter((s) => s.date >= todayStr());
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const roomId = `itqan_live_${Date.now()}`;
-    const autoMeetingUrl = `https://meet.jit.si/${roomId}`;
-
-    const newSession: ScheduledLiveSession = {
-      id: roomId,
-      title: titleInput,
-      surahTopic: surahInput,
-      teacherName: userName || 'المعلمة المشرفة',
-      studentGroup: groupInput,
-      date: dateInput,
-      time: timeInput,
-      durationMinutes: durationInput,
-      meetingUrl: autoMeetingUrl,
-      status: 'upcoming',
-    };
-
-    setSessions([newSession, ...sessions]);
-    setShowModal(false);
+    setBusy(true);
+    try {
+      await scheduleSession({ title: title.trim(), date, time, note: note.trim(), studentId: studentId || undefined });
+      setMsg('اتجدولت الحصة واتأرسل إشعار للطلاب');
+      setNote('');
+      setTimeout(() => setMsg(''), 3500);
+    } catch {
+      /* الرسالة بتظهر من النظام */
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const fmtDate = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
-      
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 text-xs font-black px-3.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-800">
-            <Video className="w-4 h-4 text-emerald-600 animate-pulse" />
-            <span>جدولة الحصص المباشرة والتكامل مع التقويم 📹</span>
-          </div>
-          <h3 className="text-xl sm:text-2xl font-black font-serif text-slate-900 dark:text-white">
-            مواعيد البث المباشر وغرف اللقاء الافتراضية
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            توليد روابط القاعات المباشرة تلقائياً ومزامنتها مع تقويم الطالبة والمعلمة.
+    <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-5">
+      <div className="flex items-center gap-3 border-b pb-4">
+        <div className="p-3 bg-sky-100 text-sky-800 rounded-2xl">
+          <CalendarClock className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="font-extrabold text-slate-900 text-lg">مواعيد الحصص القادمة</h3>
+          <p className="text-xs text-slate-500">
+            {isTeacher ? 'جدول حصة لطالب أو لكل طلابك — بيوصلهم إشعار، وبيدخلوا برابط حصتك.' : 'مواعيد حصصك من معلمك، مع زر الدخول للحصة.'}
           </p>
         </div>
+      </div>
 
-        {userRole === 'teacher' && (
+      {isTeacher && (
+        <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان الحصة" className="p-2.5 border rounded-xl font-bold" required />
+          <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className="p-2.5 border rounded-xl font-bold bg-white">
+            <option value="">كل طلابي ({myStudents.length})</option>
+            {myStudents.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+          <input type="date" value={date} min={todayStr()} onChange={(e) => setDate(e.target.value)} className="p-2.5 border rounded-xl font-bold" required />
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="p-2.5 border rounded-xl font-bold" required />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة (اختياري): مثلاً جهّز سورة الملك" className="p-2.5 border rounded-xl sm:col-span-2" />
           <button
-            onClick={() => setShowModal(true)}
-            className="px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 shrink-0"
+            type="submit"
+            disabled={busy || myStudents.length === 0}
+            className="sm:col-span-2 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black flex items-center justify-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>جدولة حصة فيديو جديدة 📹</span>
+            {busy ? 'جاري الحفظ...' : myStudents.length === 0 ? 'ما عندك طلاب معتمدين لسه' : 'جدولة الحصة'}
           </button>
-        )}
-      </div>
-
-      {/* SCHEDULED SESSIONS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {sessions.map((session) => (
-          <div
-            key={session.id}
-            className="p-5 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 dark:from-slate-900 dark:to-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all space-y-4"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="space-y-1">
-                <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full inline-block border border-emerald-300">
-                  {session.surahTopic}
-                </span>
-                <h4 className="font-extrabold text-sm font-serif text-slate-900 dark:text-white">
-                  {session.title}
-                </h4>
-              </div>
-
-              <span className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs">
-                <Video className="w-4 h-4" />
-              </span>
-            </div>
-
-            <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 font-bold">
-              <div className="flex items-center gap-2">
-                <Users className="w-3.5 h-3.5 text-emerald-600" />
-                <span>المعلمة: {session.teacherName} • {session.studentGroup}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                <span>التاريخ: {session.date} • الوقت: {session.time} ({session.durationMinutes} دقيقة)</span>
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS */}
-            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-              <button
-                onClick={() => handleCopyLink(session.id, session.meetingUrl)}
-                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5"
-              >
-                {copiedId === session.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedId === session.id ? 'تم نسخ الرابط!' : 'نسخ رابط الغرفة'}</span>
-              </button>
-
-              <a
-                href={session.meetingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5"
-              >
-                <span>دخول القاعة الآن</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-
-          </div>
-        ))}
-      </div>
-
-      {/* CREATE MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <form onSubmit={handleCreateSession} className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 border border-slate-200 dark:border-slate-800 shadow-2xl">
-            <h4 className="font-black text-slate-900 dark:text-white text-lg font-serif border-b pb-3">
-              جدولة حلقة فيديو جديدة تلقائية 📹
-            </h4>
-
-            <div className="space-y-3 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <div>
-                <label className="block mb-1">عنوان الحصة:</label>
-                <input
-                  type="text"
-                  required
-                  value={titleInput}
-                  onChange={(e) => setTitleInput(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1">السورة أو موضوع المراجعة:</label>
-                <input
-                  type="text"
-                  required
-                  value={surahInput}
-                  onChange={(e) => setSurahInput(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block mb-1">التاريخ:</label>
-                  <input
-                    type="date"
-                    required
-                    value={dateInput}
-                    onChange={(e) => setDateInput(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1">الوقت:</label>
-                  <input
-                    type="text"
-                    required
-                    value={timeInput}
-                    onChange={(e) => setTimeInput(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-3 border-t">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 text-slate-600 font-bold text-xs"
-              >
-                إلغاء
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md"
-              >
-                توليد الغرفة ومزامنة التقويم
-              </button>
-            </div>
-          </form>
-        </div>
+          {msg && <p className="sm:col-span-2 text-emerald-700 font-bold">{msg}</p>}
+        </form>
       )}
 
+      {upcoming.length === 0 ? (
+        <div className="p-8 text-center text-slate-400 text-sm border border-dashed rounded-2xl">ما في مواعيد قادمة</div>
+      ) : (
+        <div className="space-y-2">
+          {upcoming.map((s) => (
+            <div key={s.id} className="flex items-center gap-3 p-3 rounded-2xl border bg-white">
+              <div className="text-center bg-sky-50 rounded-xl px-3 py-2 shrink-0">
+                <div className="text-[10px] text-sky-700 font-bold">{s.date === todayStr() ? 'اليوم' : fmtDate(s.date).split('،')[0]}</div>
+                <div className="font-black text-sky-900 text-sm" dir="ltr">{s.time}</div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-extrabold text-slate-900 text-sm truncate">{s.title}</div>
+                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  {isTeacher ? (
+                    s.studentName ? <><UserIcon className="w-3 h-3" /> {s.studentName}</> : <><Users className="w-3 h-3" /> كل الطلاب</>
+                  ) : (
+                    <>مع {s.teacherName}</>
+                  )}
+                  <span className="text-slate-300">•</span> {fmtDate(s.date)}
+                </div>
+                {s.note && <div className="text-[11px] text-amber-700 mt-0.5">{s.note}</div>}
+              </div>
+              {s.meetingUrl ? (
+                <a href={s.meetingUrl} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 shrink-0">
+                  <Video className="w-3.5 h-3.5" /> دخول
+                </a>
+              ) : (
+                <span className="text-[10px] text-slate-400 shrink-0">{isTeacher ? 'أضف رابط حصتك' : 'الرابط لسه'}</span>
+              )}
+              {isTeacher && (
+                <button
+                  onClick={() => confirm('مسح الموعد ده؟') && deleteScheduled(s.id)}
+                  className="p-2 rounded-xl bg-rose-50 text-rose-600 shrink-0"
+                  title="مسح"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -300,6 +300,72 @@ async function getSub(db: Db, id: string) {
   return rows[0] || null;
 }
 
+
+const SCHED_SELECT = `
+  SELECT sc.*, te.name AS teacher_name, st.name AS student_name, tp.zoom_link
+  FROM scheduled_sessions sc
+  JOIN users te ON te.id = sc.teacher_id
+  LEFT JOIN users st ON st.id = sc.student_id
+  LEFT JOIN teacher_profiles tp ON tp.user_id = sc.teacher_id`;
+
+const KHATM_SELECT = `
+  SELECT k.*, te.name AS teacher_name FROM khatm_campaigns k JOIN users te ON te.id = k.teacher_id`;
+
+function schedOut(r: any) {
+  return {
+    id: r.id,
+    teacherId: r.teacher_id,
+    teacherName: r.teacher_name,
+    studentId: r.student_id || null,
+    studentName: r.student_name || null,
+    title: r.title,
+    date: isoDate(r.date),
+    time: r.time,
+    note: r.note || '',
+    meetingUrl: r.zoom_link || '',
+  };
+}
+
+function libOut(r: any) {
+  return {
+    id: r.id,
+    ownerId: r.owner_id,
+    ownerName: r.owner_name,
+    title: r.title,
+    kind: r.kind,
+    url: r.url,
+    description: r.description || '',
+    createdAt: isoDate(r.created_at),
+  };
+}
+
+function khatmOut(r: any) {
+  return {
+    id: r.id,
+    teacherId: r.teacher_id,
+    teacherName: r.teacher_name,
+    title: r.title,
+    targetDate: r.target_date ? isoDate(r.target_date) : null,
+    parts: r.parts || {},
+    createdAt: isoDate(r.created_at),
+  };
+}
+
+/** معلمو الطالب (اشتراك معتمد) */
+async function studentTeacherIds(db: Db, studentId: string): Promise<Set<string>> {
+  const rows = await db.query<{ teacher_id: string }>(
+    `SELECT DISTINCT teacher_id FROM subscriptions WHERE student_id = $1 AND payment_status = 'approved'`,
+    [studentId]
+  );
+  return new Set(rows.map((r) => r.teacher_id));
+}
+
+const httpsUrl = (v: unknown, field: string) => {
+  const u = str(v, field, 1000);
+  if (!/^https:\/\//i.test(u)) throw new HttpError(400, `«${field}» لازم يبدأ بـ https://`);
+  return u;
+};
+
 // ───────────────────────── المسارات ─────────────────────────
 
 const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handler; mutating: boolean }[] = [];
@@ -487,6 +553,28 @@ route('GET', '/bootstrap', async (c) => {
   out.broadcasts = bc.map(broadcastOut);
   out.notifications = notif.map(notifOut);
   out.userData = Object.fromEntries(ud.map((r) => [r.key, r.value]));
+
+  // المواعيد، المكتبة، والختمات الجماعية
+  const teacherScope: string[] =
+    me.role === 'teacher' ? [me.id] : me.role === 'student' ? [...myTeacherIds] : [];
+  const [sched, lib, khatm] = await Promise.all([
+    me.role === 'admin'
+      ? db.query(`${SCHED_SELECT} WHERE sc.date >= CURRENT_DATE - 1 ORDER BY sc.date, sc.time LIMIT 300`)
+      : me.role === 'teacher'
+      ? db.query(`${SCHED_SELECT} WHERE sc.teacher_id = $1 AND sc.date >= CURRENT_DATE - 1 ORDER BY sc.date, sc.time LIMIT 300`, [me.id])
+      : db.query(
+          `${SCHED_SELECT} WHERE sc.teacher_id = ANY($1) AND (sc.student_id IS NULL OR sc.student_id = $2)
+             AND sc.date >= CURRENT_DATE - 1 ORDER BY sc.date, sc.time LIMIT 300`,
+          [teacherScope, me.id]
+        ),
+    db.query(`SELECT li.*, u.name AS owner_name FROM library_items li JOIN users u ON u.id = li.owner_id ORDER BY li.created_at DESC LIMIT 300`),
+    me.role === 'admin'
+      ? db.query(`${KHATM_SELECT} WHERE k.active ORDER BY k.created_at DESC`)
+      : db.query(`${KHATM_SELECT} WHERE k.active AND k.teacher_id = ANY($1) ORDER BY k.created_at DESC`, [teacherScope]),
+  ]);
+  out.scheduled = sched.map(schedOut);
+  out.library = lib.map(libOut);
+  out.khatms = khatm.map(khatmOut);
 
   if (me.role === 'admin') {
     const [stu, subs, ses] = await Promise.all([
@@ -906,6 +994,167 @@ route('PUT', '/me/data/:key', async (c) => {
   return { ok: true };
 });
 
+// ── مواعيد الحصص القادمة (المعلم يجدول لطالب معيّن أو لكل طلابه)
+route('POST', '/schedule', async (c) => {
+  const me = requireUser(c, 'teacher');
+  const b = c.req.body || {};
+  const title = str(b.title, 'عنوان الحصة', 200);
+  const date = str(b.date, 'التاريخ', 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date))) throw new HttpError(400, 'التاريخ غير صحيح');
+  const time = str(b.time, 'الوقت', 20);
+  const note = str(b.note, 'ملاحظة', 500, false);
+  let studentId: string | null = null;
+  if (b.studentId) {
+    const ok = await c.db.query(
+      `SELECT 1 FROM subscriptions WHERE teacher_id = $1 AND student_id = $2 AND payment_status = 'approved' LIMIT 1`,
+      [me.id, b.studentId]
+    );
+    if (!ok.length) throw new HttpError(400, 'الطالب ده ما من طلابك المعتمدين');
+    studentId = String(b.studentId);
+  }
+  const id = newId('sch');
+  await c.db.query(
+    `INSERT INTO scheduled_sessions (id, teacher_id, student_id, title, date, time, note) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [id, me.id, studentId, title, date, time, note]
+  );
+  // إشعار للطلاب المعنيين
+  const targets = studentId
+    ? [studentId]
+    : (await c.db.query<{ student_id: string }>(
+        `SELECT DISTINCT student_id FROM subscriptions WHERE teacher_id = $1 AND payment_status = 'approved'`,
+        [me.id]
+      )).map((r) => r.student_id);
+  for (const sid of targets.slice(0, 200)) {
+    await notify(c.db, { userId: sid }, {
+      title: 'موعد حصة جديد 📅',
+      message: `${title} — يوم ${date} الساعة ${time}\n— من المعلم/ة ${me.name}`,
+      type: 'reminder',
+    });
+  }
+  const row = (await c.db.query(`${SCHED_SELECT} WHERE sc.id = $1`, [id]))[0];
+  return { scheduled: schedOut(row) };
+});
+
+route('DELETE', '/schedule/:id', async (c) => {
+  const me = requireUser(c, 'teacher', 'admin');
+  const rows = await c.db.query(
+    me.role === 'admin' ? `DELETE FROM scheduled_sessions WHERE id = $1 RETURNING id` : `DELETE FROM scheduled_sessions WHERE id = $1 AND teacher_id = $2 RETURNING id`,
+    me.role === 'admin' ? [c.params.id] : [c.params.id, me.id]
+  );
+  if (!rows.length) throw new HttpError(404, 'الموعد ما موجود');
+  return { ok: true };
+});
+
+// ── المكتبة الرقمية (روابط ملفات وفيديوهات يضيفها المعلمون والإدارة)
+route('POST', '/library', async (c) => {
+  const me = requireUser(c, 'teacher', 'admin');
+  const b = c.req.body || {};
+  await rateLimit(c.db, `library:${me.id}`, 100);
+  const id = newId('lib');
+  await c.db.query(
+    `INSERT INTO library_items (id, owner_id, title, kind, url, description) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      id, me.id, str(b.title, 'العنوان', 200),
+      oneOf(b.kind || 'link', 'النوع', ['pdf', 'video', 'audio', 'link'] as const),
+      httpsUrl(b.url, 'الرابط'), str(b.description, 'الوصف', 1000, false),
+    ]
+  );
+  const row = (await c.db.query(`SELECT li.*, u.name AS owner_name FROM library_items li JOIN users u ON u.id = li.owner_id WHERE li.id = $1`, [id]))[0];
+  return { item: libOut(row) };
+});
+
+route('DELETE', '/library/:id', async (c) => {
+  const me = requireUser(c, 'teacher', 'admin');
+  const rows = await c.db.query(
+    me.role === 'admin' ? `DELETE FROM library_items WHERE id = $1 RETURNING id` : `DELETE FROM library_items WHERE id = $1 AND owner_id = $2 RETURNING id`,
+    me.role === 'admin' ? [c.params.id] : [c.params.id, me.id]
+  );
+  if (!rows.length) throw new HttpError(404, 'العنصر ما موجود أو ما عندك صلاحية تمسحه');
+  return { ok: true };
+});
+
+// ── الختمات الجماعية: المعلم ينشئ ختمة، وطلابه يحجزوا الأجزاء ويعلّموها مكتملة
+async function khatmFor(c: Ctx, id: string) {
+  const k = (await c.db.query(`${KHATM_SELECT} WHERE k.id = $1 AND k.active`, [id]))[0];
+  if (!k) throw new HttpError(404, 'الختمة ما موجودة');
+  return k;
+}
+
+async function canJoinKhatm(c: Ctx, k: any): Promise<boolean> {
+  const me = c.user!;
+  if (me.role === 'admin' || k.teacher_id === me.id) return true;
+  if (me.role !== 'student') return false;
+  return (await studentTeacherIds(c.db, me.id)).has(k.teacher_id);
+}
+
+route('POST', '/khatm', async (c) => {
+  const me = requireUser(c, 'teacher');
+  const b = c.req.body || {};
+  const target = b.targetDate ? str(b.targetDate, 'تاريخ الختم', 10) : null;
+  if (target && isNaN(Date.parse(target))) throw new HttpError(400, 'التاريخ غير صحيح');
+  const id = newId('khm');
+  await c.db.query(`INSERT INTO khatm_campaigns (id, teacher_id, title, target_date) VALUES ($1,$2,$3,$4)`, [
+    id, me.id, str(b.title, 'اسم الختمة', 200), target,
+  ]);
+  return { khatm: khatmOut(await khatmFor(c, id)) };
+});
+
+route('POST', '/khatm/:id/claim', async (c) => {
+  const me = requireUser(c);
+  const k = await khatmFor(c, c.params.id);
+  if (!(await canJoinKhatm(c, k))) throw new HttpError(403, 'الختمة دي لطلاب المعلم/ة بس');
+  const juz = String(int(c.req.body?.juz, 'رقم الجزء', 1, 30));
+  const val = JSON.stringify({ userId: me.id, name: me.name, done: false, at: new Date().toISOString() });
+  const rows = await c.db.query(
+    `UPDATE khatm_campaigns SET parts = parts || jsonb_build_object($2::text, $3::jsonb)
+     WHERE id = $1 AND NOT (parts ? $2::text) RETURNING id`,
+    [k.id, juz, val]
+  );
+  if (!rows.length) throw new HttpError(409, 'الجزء ده اتحجز قبلك — أختار جزء تاني');
+  return { khatm: khatmOut(await khatmFor(c, k.id)) };
+});
+
+route('POST', '/khatm/:id/done', async (c) => {
+  const me = requireUser(c);
+  const k = await khatmFor(c, c.params.id);
+  const juz = String(int(c.req.body?.juz, 'رقم الجزء', 1, 30));
+  const part = (k.parts || {})[juz];
+  if (!part) throw new HttpError(400, 'الجزء ده ما محجوز');
+  if (part.userId !== me.id && k.teacher_id !== me.id && me.role !== 'admin') throw new HttpError(403, 'الجزء ده محجوز لزول تاني');
+  const done = c.req.body?.done !== false;
+  await c.db.query(
+    `UPDATE khatm_campaigns SET parts = jsonb_set(parts, ARRAY[$2::text, 'done'], to_jsonb($3::boolean)) WHERE id = $1`,
+    [k.id, juz, done]
+  );
+  const after = await khatmFor(c, k.id);
+  const parts = after.parts || {};
+  if (done && Object.keys(parts).length === 30 && Object.values(parts).every((p: any) => p.done)) {
+    await notify(c.db, { userId: k.teacher_id }, { title: 'اكتملت الختمة 🎉', message: `اكتملت ختمة «${k.title}» — الثلاثين جزء كلهم`, type: 'success' });
+  }
+  return { khatm: khatmOut(after) };
+});
+
+route('POST', '/khatm/:id/release', async (c) => {
+  const me = requireUser(c);
+  const k = await khatmFor(c, c.params.id);
+  const juz = String(int(c.req.body?.juz, 'رقم الجزء', 1, 30));
+  const part = (k.parts || {})[juz];
+  if (!part) return { khatm: khatmOut(k) };
+  if (part.userId !== me.id && k.teacher_id !== me.id && me.role !== 'admin') throw new HttpError(403, 'الجزء ده محجوز لزول تاني');
+  await c.db.query(`UPDATE khatm_campaigns SET parts = parts - $2::text WHERE id = $1`, [k.id, juz]);
+  return { khatm: khatmOut(await khatmFor(c, k.id)) };
+});
+
+route('DELETE', '/khatm/:id', async (c) => {
+  const me = requireUser(c, 'teacher', 'admin');
+  const rows = await c.db.query(
+    me.role === 'admin' ? `UPDATE khatm_campaigns SET active = false WHERE id = $1 RETURNING id` : `UPDATE khatm_campaigns SET active = false WHERE id = $1 AND teacher_id = $2 RETURNING id`,
+    me.role === 'admin' ? [c.params.id] : [c.params.id, me.id]
+  );
+  if (!rows.length) throw new HttpError(404, 'الختمة ما موجودة');
+  return { ok: true };
+});
+
 // ── الإعلانات العامة
 route('POST', '/broadcasts', async (c) => {
   const me = requireUser(c, 'admin');
@@ -954,7 +1203,7 @@ route('POST', '/admin/users/:id/active', async (c) => {
 route('GET', '/admin/export', async (c) => {
   requireUser(c, 'admin');
   const db = c.db;
-  const [users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts, userData] = await Promise.all([
+  const [users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts, userData, scheduled, library, khatms] = await Promise.all([
     db.query(`SELECT id, role, name, phone, email, active, created_at FROM users ORDER BY created_at`),
     db.query(`SELECT * FROM teacher_profiles`),
     db.query(`SELECT * FROM packages ORDER BY sort`),
@@ -963,13 +1212,16 @@ route('GET', '/admin/export', async (c) => {
     db.query(`SELECT * FROM sessions ORDER BY created_at`),
     db.query(`SELECT * FROM broadcasts ORDER BY created_at`),
     db.query(`SELECT * FROM user_data ORDER BY user_id, key`),
+    db.query(`SELECT * FROM scheduled_sessions ORDER BY date`),
+    db.query(`SELECT * FROM library_items ORDER BY created_at`),
+    db.query(`SELECT * FROM khatm_campaigns ORDER BY created_at`),
   ]);
   return {
     format: 'quran-academy-backup',
     version: 1,
     exportedAt: new Date().toISOString(),
     note: 'كلمات السر وصور الإيصالات غير مضمّنة في النسخة لأسباب أمنية وحجمية',
-    users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts, userData,
+    users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts, userData, scheduled, library, khatms,
   };
 });
 

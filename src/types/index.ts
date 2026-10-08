@@ -160,3 +160,44 @@ export interface TeacherNotification {
   sentAt: string;
   read: boolean;
 }
+
+export interface ScheduledSession {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  studentId: string | null; // null = لكل طلاب المعلم
+  studentName: string | null;
+  title: string;
+  date: string;
+  time: string;
+  note: string;
+  meetingUrl: string;
+}
+
+export interface LibraryItem {
+  id: string;
+  ownerId: string;
+  ownerName: string;
+  title: string;
+  kind: 'pdf' | 'video' | 'audio' | 'link';
+  url: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface KhatmPart {
+  userId: string;
+  name: string;
+  done: boolean;
+  at?: string;
+}
+
+export interface KhatmCampaign {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  title: string;
+  targetDate: string | null;
+  parts: Record<string, KhatmPart>;
+  createdAt: string;
+}

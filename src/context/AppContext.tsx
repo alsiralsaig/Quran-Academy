@@ -8,6 +8,9 @@ import {
   SessionRecord,
   BankAccount,
   NotificationItem,
+  ScheduledSession,
+  LibraryItem,
+  KhatmCampaign,
 } from '../types';
 import { AVATAR_ADMIN, AVATAR_STUDENT_1, AVATAR_TEACHER_1 } from '../data/initialState';
 import { Language, translations } from '../locales/translations';
@@ -107,6 +110,16 @@ interface AppContextType {
   }) => Promise<number>;
   /** بيانات المستخدم الشخصية المحفوظة في قاعدة البيانات (تتزامن بين الأجهزة) */
   userData: Partial<Record<UserDataKey, any>>;
+  scheduled: ScheduledSession[];
+  library: LibraryItem[];
+  khatms: KhatmCampaign[];
+  scheduleSession: (d: { title: string; date: string; time: string; note?: string; studentId?: string }) => Promise<void>;
+  deleteScheduled: (id: string) => Promise<void>;
+  addLibraryItem: (d: { title: string; kind: LibraryItem['kind']; url: string; description?: string }) => Promise<void>;
+  deleteLibraryItem: (id: string) => Promise<void>;
+  createKhatm: (d: { title: string; targetDate?: string }) => Promise<void>;
+  khatmAction: (id: string, action: 'claim' | 'done' | 'undone' | 'release', juz: number) => Promise<void>;
+  deleteKhatm: (id: string) => Promise<void>;
   saveUserData: (key: UserDataKey, value: any) => void;
 
   // Package Management
@@ -235,6 +248,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [backups, setBackups] = useState<BackupSnapshot[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledSession[]>([]);
+  const [library, setLibrary] = useState<LibraryItem[]>([]);
+  const [khatms, setKhatms] = useState<KhatmCampaign[]>([]);
   const [userData, setUserData] = useState<Partial<Record<UserDataKey, any>>>({});
   const pendingSaves = useRef<Map<UserDataKey, number>>(new Map());
 
@@ -254,6 +270,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStudents((b.students || []).map(withAvatar));
     setSubscriptions(b.subscriptions || []);
     setSessions(b.sessions || []);
+    setScheduled(b.scheduled || []);
+    setLibrary(b.library || []);
+    setKhatms(b.khatms || []);
     // لا نكتب فوق مفتاح عنده حفظ معلّق (تعديل لسه ما وصل السيرفر)
     const serverData = (b.userData || {}) as Partial<Record<UserDataKey, any>>;
     setUserData((prev) => {
@@ -388,6 +407,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendDirectNotification: AppContextType['sendDirectNotification'] = async (data) => {
     const r = await run(() => api<{ sent: number }>('POST', '/notifications/send', data), { refresh: false, rethrow: true });
     return r?.sent ?? 0;
+  };
+
+  // ── المواعيد، المكتبة، الختمات
+  const scheduleSession: AppContextType['scheduleSession'] = async (d) => {
+    await run(() => api('POST', '/schedule', d), { rethrow: true });
+  };
+  const deleteScheduled = async (id: string) => {
+    await run(() => api('DELETE', `/schedule/${id}`));
+  };
+  const addLibraryItem: AppContextType['addLibraryItem'] = async (d) => {
+    await run(() => api('POST', '/library', d), { rethrow: true });
+  };
+  const deleteLibraryItem = async (id: string) => {
+    await run(() => api('DELETE', `/library/${id}`));
+  };
+  const createKhatm: AppContextType['createKhatm'] = async (d) => {
+    await run(() => api('POST', '/khatm', d), { rethrow: true });
+  };
+  const khatmAction: AppContextType['khatmAction'] = async (id, action, juz) => {
+    const path = action === 'undone' ? 'done' : action;
+    const body = action === 'undone' ? { juz, done: false } : { juz };
+    const r = await run(() => api<{ khatm: KhatmCampaign }>('POST', `/khatm/${id}/${path}`, body), { refresh: false });
+    if (r?.khatm) setKhatms((prev) => prev.map((k) => (k.id === id ? r.khatm : k)));
+    else await refresh();
+  };
+  const deleteKhatm = async (id: string) => {
+    await run(() => api('DELETE', `/khatm/${id}`));
   };
 
   // ── الحساب
@@ -655,6 +701,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendDirectNotification,
         userData,
         saveUserData,
+        scheduled,
+        library,
+        khatms,
+        scheduleSession,
+        deleteScheduled,
+        addLibraryItem,
+        deleteLibraryItem,
+        createKhatm,
+        khatmAction,
+        deleteKhatm,
         addPackage,
         updatePackage,
         deletePackage,
