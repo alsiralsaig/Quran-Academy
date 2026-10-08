@@ -1,209 +1,158 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Archive,
-  Search,
-  RotateCcw,
-  FileText,
-  Download,
-  Users,
-  Award,
-  CheckCircle2,
-  Calendar,
-  BookOpen,
-  Printer,
-  X,
-  Sparkles,
-  ChevronLeft
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Archive, Search, Star, BookOpen, CalendarCheck, EyeOff, Eye, Printer, X } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import { SessionRecord, Subscription } from '../../types';
 
-export interface ArchivedCircle {
-  id: string;
-  name: string;
-  level: string;
-  teacherName: string;
-  completedDate: string;
-  studentCount: number;
-  totalPagesMemorized: number;
-  attendanceRate: number;
-  students: {
-    name: string;
-    surahCompleted: string;
-    grade: string;
-    rating: string;
-    notes: string;
-  }[];
+/**
+ * أرشيف الطلاب المكتملين — من البيانات الحقيقية:
+ * كل اشتراك معتمد استُهلكت حصصه كلها (أو انتهت صلاحيته) يظهر هنا مع ملخص حصصه.
+ * «إخفاء» يحفظ في قاعدة البيانات مع حساب المعلم (مفتاح archived_circles = قائمة معرّفات مخفية).
+ */
+interface ArchivedEntry {
+  sub: Subscription;
+  sessions: SessionRecord[];
+  avgRating: number;
+  presentCount: number;
+  lastSurah: string;
+  lastDate: string;
 }
 
-const INITIAL_ARCHIVED_CIRCLES: ArchivedCircle[] = [
-  {
-    id: 'arch_1',
-    name: 'حلقة ختم جزء عم - الدفعة الأولى',
-    level: 'المستوى المبتدئ',
-    teacherName: 'د. عائشة العتيبي',
-    completedDate: '2026-09-15',
-    studentCount: 12,
-    totalPagesMemorized: 240,
-    attendanceRate: 96,
-    students: [
-      { name: 'فاطمة الشمري', surahCompleted: 'جزء عم كاملاً', grade: 'ممتاز مرتفع', rating: '99%', notes: 'إتقان تلميح مخارج الحروف وأحكام النون الساكنة' },
-      { name: 'مريم الدوسري', surahCompleted: 'جزء عم كاملاً', grade: 'ممتاز', rating: '95%', notes: 'التزام عالي بالحضور والتسميع اليومي' },
-      { name: 'سارة القحطاني', surahCompleted: 'جزء عم كاملاً', grade: 'جيد جداً مرتفع', rating: '92%', notes: 'مواظبة جيدة وتحسن ملحوظ في أحكام المدود' },
-    ],
-  },
-  {
-    id: 'arch_2',
-    name: 'حلقة تثبيت سورة البقرة وآل عمران',
-    level: 'المستوى المتقدم',
-    teacherName: 'د. عائشة العتيبي',
-    completedDate: '2026-08-30',
-    studentCount: 8,
-    totalPagesMemorized: 640,
-    attendanceRate: 98,
-    students: [
-      { name: 'نورة الغامدي', surahCompleted: 'سورة البقرة وآل عمران', grade: 'ممتاز مرتفع (100%)', rating: '100%', notes: 'ختمة متقنة جداً بدون أي أخطاء لفظية' },
-      { name: 'هدى المالكي', surahCompleted: 'سورة البقرة وآل عمران', grade: 'ممتاز', rating: '97%', notes: 'أداء صوتي شجي وحفظ راسخ' },
-    ],
-  },
-];
+const isFinished = (s: Subscription) => {
+  if (s.paymentStatus !== 'approved') return false;
+  if (s.usedSessions >= s.totalSessions) return true;
+  return !!s.expiryDate && new Date(s.expiryDate).getTime() < Date.now();
+};
 
 export const ArchivedStudyCircles: React.FC = () => {
-  const STORAGE_KEY = 'etqan_archived_circles_db';
-  const [archivedCircles, setArchivedCircles] = useState<ArchivedCircle[]>(INITIAL_ARCHIVED_CIRCLES);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCircleForReport, setSelectedCircleForReport] = useState<ArchivedCircle | null>(null);
+  const { currentUser, subscriptions, sessions, userData, saveUserData } = useApp();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showHidden, setShowHidden] = useState(false);
+  const [report, setReport] = useState<ArchivedEntry | null>(null);
 
-  // Load from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setArchivedCircles(JSON.parse(saved));
-      } catch {
-        setArchivedCircles(INITIAL_ARCHIVED_CIRCLES);
-      }
-    }
-  }, []);
+  const hidden: string[] = Array.isArray(userData.archived_circles) ? userData.archived_circles : [];
 
-  const saveToStorage = (updated: ArchivedCircle[]) => {
-    setArchivedCircles(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  };
+  const entries: ArchivedEntry[] = useMemo(() => {
+    return subscriptions
+      .filter((s) => (currentUser.role === 'admin' || s.teacherId === currentUser.id) && isFinished(s))
+      .map((sub) => {
+        const list = sessions
+          .filter((x) => x.subscriptionId === sub.id)
+          .sort((a, b) => (a.date < b.date ? 1 : -1));
+        const rated = list.filter((x) => x.attendance === 'present');
+        const avg = rated.length ? rated.reduce((n, x) => n + (x.rating || 0), 0) / rated.length : 0;
+        return {
+          sub,
+          sessions: list,
+          avgRating: Math.round(avg * 10) / 10,
+          presentCount: rated.length,
+          lastSurah: list[0]?.surahName || '—',
+          lastDate: list[0]?.date || sub.expiryDate || '',
+        };
+      });
+  }, [subscriptions, sessions, currentUser]);
 
-  // Restore Circle back to active
-  const handleRestoreCircle = (id: string, name: string) => {
-    if (confirm(`هل أنت متأكد من استرجاع "${name}" من الأرشيف وإعادتها لقائمة الحلقات النشطة؟`)) {
-      const updated = archivedCircles.filter((c) => c.id !== id);
-      saveToStorage(updated);
-      alert(`تم استرجاع "${name}" بنجاح إلى الحلقات النشطة!`);
-    }
-  };
-
-  // Filter archived circles
-  const filteredCircles = archivedCircles.filter((c) => {
-    const q = searchQuery.toLowerCase();
+  const q = searchQuery.trim().toLowerCase();
+  const visible = entries.filter((e) => {
+    if (!showHidden && hidden.includes(e.sub.id)) return false;
+    if (!q) return true;
     return (
-      c.name.toLowerCase().includes(q) ||
-      c.level.toLowerCase().includes(q) ||
-      c.students.some((s) => s.name.toLowerCase().includes(q))
+      e.sub.studentName.toLowerCase().includes(q) ||
+      e.sub.packageName.toLowerCase().includes(q) ||
+      e.sessions.some((x) => x.surahName.toLowerCase().includes(q))
     );
   });
 
+  const toggleHidden = (id: string) => {
+    saveUserData('archived_circles', hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id]);
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
-      
-      {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-300 dark:border-amber-800">
+          <div className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-900 text-xs font-bold px-3 py-1 rounded-full border border-amber-300">
             <Archive className="w-4 h-4 text-amber-700" />
-            <span>Archived Study Circles Archive 📁</span>
+            <span>الأرشيف</span>
           </div>
-          <h3 className="text-xl font-extrabold font-serif text-slate-900 dark:text-white">
-            أرشيف الحلقات المكتملة وتقارير التخرج النهائية
-          </h3>
+          <h3 className="text-xl font-extrabold font-serif text-slate-900 dark:text-white">الطلاب الأكملوا باقاتهم</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            تصفح الحلقات القرآنية المكتملة وسجلات الخريجات، مع خيار استرجاع الحلقات وتوليد تقرير نهائي شامل للحلقة.
+            أي اشتراك خلصت حصصه أو انتهت مدته بيظهر هنا تلقائياً مع ملخص الحضور والتقييم وآخر سورة.
           </p>
         </div>
-
-        {/* Search Bar */}
-        <div className="relative max-w-xs w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث باسم الحلقة أو الطالبات..."
-            className="w-full pr-9 pl-4 py-2.5 bg-slate-50 dark:bg-slate-800 text-xs rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
-          />
+        <div className="flex items-center gap-2 max-w-sm w-full">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="بحث باسم الطالب أو الباقة أو السورة..."
+              className="w-full pr-9 pl-4 py-2.5 bg-slate-50 dark:bg-slate-800 text-xs rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+            />
+          </div>
+          {hidden.length > 0 && (
+            <button
+              onClick={() => setShowHidden((v) => !v)}
+              className="px-3 py-2.5 text-[11px] font-bold rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 shrink-0"
+            >
+              {showHidden ? 'إخفاء المخفي' : `المخفي (${hidden.length})`}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ARCHIVED CIRCLES GRID */}
-      {filteredCircles.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-300 space-y-2">
           <Archive className="w-10 h-10 text-slate-400 mx-auto" />
-          <h4 className="font-extrabold text-sm text-slate-700 dark:text-slate-300">لا توجد حلقات مؤرشفة تطابق البحث</h4>
-          <p className="text-xs text-slate-400">يمكنك أرشفة الحلقات المكتملة من قائمة الحلقات النشطة لاحقاً.</p>
+          <h4 className="font-extrabold text-sm text-slate-700 dark:text-slate-300">
+            {entries.length === 0 ? 'لسه ما في طالب أكمل باقته' : 'ما في نتائج مطابقة'}
+          </h4>
+          <p className="text-xs text-slate-400">لما طالب يستهلك كل حصص باقته بيظهر هنا براه.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredCircles.map((circle) => (
-            <div
-              key={circle.id}
-              className="p-5 bg-gradient-to-br from-slate-50 to-amber-50/30 dark:from-slate-800/90 dark:to-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4 shadow-sm hover:border-amber-400 transition-all"
-            >
-              <div className="flex items-start justify-between">
+          {visible.map((e) => (
+            <div key={e.sub.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
+              <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-300">
-                    مكتملة ومؤرشفة ✅
-                  </span>
-                  <h4 className="font-extrabold text-slate-900 dark:text-white text-base font-serif mt-1">
-                    {circle.name}
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    {circle.level} • تاريخ الاكتفاء: {circle.completedDate}
-                  </p>
+                  <h4 className="font-extrabold text-slate-900">{e.sub.studentName}</h4>
+                  <p className="text-[11px] text-emerald-700 font-bold">{e.sub.packageName}</p>
                 </div>
-
-                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                  <Archive className="w-5 h-5 text-amber-700" />
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                  {e.sub.usedSessions}/{e.sub.totalSessions} حصة
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                <div className="bg-white rounded-xl p-2 border">
+                  <Star className="w-3.5 h-3.5 mx-auto text-amber-500" />
+                  <div className="font-black text-slate-800">{e.avgRating || '—'}</div>
+                  <div className="text-slate-400">متوسط التقييم</div>
+                </div>
+                <div className="bg-white rounded-xl p-2 border">
+                  <CalendarCheck className="w-3.5 h-3.5 mx-auto text-emerald-600" />
+                  <div className="font-black text-slate-800">{e.presentCount}</div>
+                  <div className="text-slate-400">حضور</div>
+                </div>
+                <div className="bg-white rounded-xl p-2 border">
+                  <BookOpen className="w-3.5 h-3.5 mx-auto text-sky-600" />
+                  <div className="font-black text-slate-800 truncate">{e.lastSurah}</div>
+                  <div className="text-slate-400">آخر سورة</div>
                 </div>
               </div>
-
-              {/* Stats Summary Badge */}
-              <div className="grid grid-cols-3 gap-2 p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-                <div>
-                  <span className="text-xs text-slate-400 block font-bold">عدد الطالبات</span>
-                  <span className="text-sm font-black text-slate-800 dark:text-slate-100">{circle.studentCount} طالبة</span>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-400 block font-bold">الصفحات المحفوظة</span>
-                  <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">{circle.totalPagesMemorized} ص</span>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-400 block font-bold">نسبة الانضباط</span>
-                  <span className="text-sm font-black text-amber-600">{circle.attendanceRate}%</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedCircleForReport(circle)}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5"
+                  onClick={() => setReport(e)}
+                  className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1"
                 >
-                  <FileText className="w-4 h-4" />
-                  <span>توليد التقرير النهائي الشامل 📜</span>
+                  <Printer className="w-3.5 h-3.5" /> التقرير النهائي
                 </button>
-
                 <button
-                  onClick={() => handleRestoreCircle(circle.id, circle.name)}
-                  className="px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1"
-                  title="استرجاع الحلقة للحالة النشطة"
+                  onClick={() => toggleHidden(e.sub.id)}
+                  className="px-3 py-2 rounded-xl bg-white border text-slate-600 text-xs font-bold flex items-center gap-1"
+                  title={hidden.includes(e.sub.id) ? 'إظهار' : 'إخفاء من القائمة'}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>استرجاع للنشطة</span>
+                  {hidden.includes(e.sub.id) ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  {hidden.includes(e.sub.id) ? 'إظهار' : 'إخفاء'}
                 </button>
               </div>
             </div>
@@ -211,119 +160,55 @@ export const ArchivedStudyCircles: React.FC = () => {
         </div>
       )}
 
-      {/* COMPREHENSIVE FINAL REPORT MODAL */}
-      {selectedCircleForReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-950 rounded-3xl max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-emerald-300 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-100 text-emerald-900 rounded-2xl">
-                  <FileText className="w-6 h-6 text-emerald-700" />
-                </div>
-                <div>
-                  <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full">
-                    التقرير النهائي الشامل للحلقة المكتملة 📜
-                  </span>
-                  <h3 className="font-extrabold text-slate-900 dark:text-white text-lg font-serif mt-0.5">
-                    {selectedCircleForReport.name}
-                  </h3>
-                </div>
-              </div>
-
-              <button onClick={() => setSelectedCircleForReport(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Printable Report Document Card */}
-            <div className="p-6 bg-amber-50/50 dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-slate-800 space-y-6 font-serif">
-              
-              {/* Report Header Branding */}
-              <div className="text-center space-y-1 border-b pb-4 border-amber-200/80">
-                <h2 className="text-xl font-extrabold text-emerald-900 dark:text-emerald-400">أكاديمية إتقان لتحفيظ القرآن الكريم</h2>
-                <p className="text-xs text-slate-600 dark:text-slate-300 font-sans font-bold">
-                  تقرير إتمام وتقييم الدفعة الدراسية - المعلمة المشرفة: {selectedCircleForReport.teacherName}
+      {report && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4" onClick={() => setReport(null)}>
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 space-y-4" onClick={(ev) => ev.stopPropagation()}>
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900">التقرير النهائي — {report.sub.studentName}</h3>
+                <p className="text-xs text-slate-500">
+                  {report.sub.packageName} • المعلم/ة: {report.sub.teacherName}
                 </p>
-                <p className="text-[11px] text-slate-400 font-sans">تاريخ التوثيق والاكتمال: {selectedCircleForReport.completedDate}</p>
               </div>
-
-              {/* Summary Stats Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-sans">
-                <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">إجمالي الطالبات</span>
-                  <span className="text-base font-black text-slate-900 dark:text-white">{selectedCircleForReport.studentCount}</span>
-                </div>
-                <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">مجموع الصفحات</span>
-                  <span className="text-base font-black text-emerald-700">{selectedCircleForReport.totalPagesMemorized} ص</span>
-                </div>
-                <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">نسبة الانضباط</span>
-                  <span className="text-base font-black text-amber-600">{selectedCircleForReport.attendanceRate}%</span>
-                </div>
-                <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">مستوى الحلقة</span>
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-200">{selectedCircleForReport.level}</span>
-                </div>
-              </div>
-
-              {/* Graduating Students Table */}
-              <div className="space-y-2 font-sans">
-                <h4 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-amber-500" />
-                  سجل نتائج وتقييم الطالبات الخريجات:
-                </h4>
-
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                  <table className="w-full text-right text-xs">
-                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold">
-                      <tr>
-                        <th className="p-3">اسم الطالبة</th>
-                        <th className="p-3">المقرر المكتمل</th>
-                        <th className="p-3">التقدير النهائي</th>
-                        <th className="p-3">ملاحظات المعلمة</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                      {selectedCircleForReport.students.map((std, i) => (
-                        <tr key={i} className="hover:bg-amber-50/50 dark:hover:bg-slate-900 font-medium">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white">{std.name}</td>
-                          <td className="p-3 text-emerald-700 dark:text-emerald-400 font-bold">{std.surahCompleted}</td>
-                          <td className="p-3 font-bold text-amber-600">{std.grade}</td>
-                          <td className="p-3 text-slate-500 dark:text-slate-400 text-[11px]">{std.notes}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
+              <button onClick={() => setReport(null)} className="p-2 rounded-xl bg-slate-100"><X className="w-4 h-4" /></button>
             </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between pt-2 border-t">
-              <button
-                onClick={() => window.print()}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-2"
-              >
-                <Printer className="w-4 h-4 text-amber-400" />
-                <span>طباعة / تصدير التقرير النهائي (PDF) 🖨️</span>
-              </button>
-
-              <button
-                onClick={() => setSelectedCircleForReport(null)}
-                className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-md"
-              >
-                إغلاق النافذة
-              </button>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-3 rounded-2xl bg-emerald-50"><b className="block text-lg">{report.sessions.length}</b>حصة مسجّلة</div>
+              <div className="p-3 rounded-2xl bg-amber-50"><b className="block text-lg">{report.avgRating || '—'}</b>متوسط التقييم</div>
+              <div className="p-3 rounded-2xl bg-sky-50"><b className="block text-lg">{report.presentCount}</b>حضور</div>
             </div>
-
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-100 text-slate-600">
+                  <th className="p-2 text-right">التاريخ</th>
+                  <th className="p-2 text-right">السورة والآيات</th>
+                  <th className="p-2">التقييم</th>
+                  <th className="p-2">الحضور</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.sessions.length === 0 ? (
+                  <tr><td colSpan={4} className="p-4 text-center text-slate-400">ما في حصص مسجّلة</td></tr>
+                ) : (
+                  report.sessions.map((x) => (
+                    <tr key={x.id} className="border-b">
+                      <td className="p-2">{x.date}</td>
+                      <td className="p-2">{x.surahName} ({x.fromAyah}–{x.toAyah})</td>
+                      <td className="p-2 text-center">{x.attendance === 'present' ? `${x.rating}/5` : '—'}</td>
+                      <td className="p-2 text-center">
+                        {x.attendance === 'present' ? 'حاضر' : x.attendance === 'absent_excused' ? 'غياب بعذر' : 'غياب'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            <button onClick={() => window.print()} className="w-full py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1">
+              <Printer className="w-4 h-4" /> طباعة
+            </button>
           </div>
         </div>
       )}
-
     </div>
   );
 };

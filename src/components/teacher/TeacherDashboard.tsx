@@ -41,6 +41,7 @@ import { LiveQuranClassroomModal } from '../classroom/LiveQuranClassroomModal';
 
 export const TeacherDashboard: React.FC = () => {
   const {
+    updateMyZoomLink,
     currentUser,
     teachers,
     submitTeacherApplication,
@@ -96,7 +97,31 @@ export const TeacherDashboard: React.FC = () => {
   const [recordSuccessMsg, setRecordSuccessMsg] = useState('');
 
   // Meeting Link state
-  const [zoomUrl, setZoomUrl] = useState(activeTeacher?.zoomLink || 'https://zoom.us/j/9876543210');
+  const [zoomUrl, setZoomUrl] = useState(activeTeacher?.zoomLink || '');
+  const [savingZoom, setSavingZoom] = useState(false);
+  const savedZoom = activeTeacher?.zoomLink || '';
+  const zoomDirty = zoomUrl.trim() !== savedZoom;
+  // لما بيانات المعلم توصل من السيرفر (أو تتحدث) نعرض الرابط المحفوظ
+  useEffect(() => {
+    setZoomUrl(savedZoom);
+  }, [savedZoom]);
+  const handleSaveMeetingLink = async () => {
+    const link = zoomUrl.trim();
+    if (link && !/^https:\/\//i.test(link)) {
+      setSavedMeetingMsg('الرابط لازم يبدأ بـ https://');
+      return;
+    }
+    setSavingZoom(true);
+    try {
+      await updateMyZoomLink(link);
+      setSavedMeetingMsg(link ? 'اتحفظ الرابط — طلابك المعتمدين بيشوفوه في لوحتهم' : 'اتمسح الرابط');
+    } catch {
+      /* الرسالة بتظهر من النظام */
+    } finally {
+      setSavingZoom(false);
+      setTimeout(() => setSavedMeetingMsg(''), 3500);
+    }
+  };
   const [copiedLink, setCopiedLink] = useState(false);
   const [savedMeetingMsg, setSavedMeetingMsg] = useState('');
   const [isClassroomOpen, setIsClassroomOpen] = useState(false);
@@ -421,10 +446,11 @@ export const TeacherDashboard: React.FC = () => {
 
               <div className="flex items-center gap-1.5 pt-1">
                 <input
-                  type="text"
+                  type="url"
                   value={zoomUrl}
                   onChange={(e) => setZoomUrl(e.target.value)}
-                  placeholder="رابط خارجي بديل (اختياري)..."
+                  placeholder="الصق رابط Zoom أو Google Meet هنا..."
+                  data-zoom-input
                   className="w-full bg-emerald-950 text-white text-[11px] p-2 rounded-xl border border-emerald-700 focus:outline-none"
                   dir="ltr"
                 />
@@ -436,7 +462,16 @@ export const TeacherDashboard: React.FC = () => {
                   {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedLink ? 'تم' : 'نسخ'}
                 </button>
+                <button
+                  onClick={handleSaveMeetingLink}
+                  disabled={savingZoom || !zoomDirty}
+                  data-zoom-save
+                  className="px-3 py-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-black text-xs rounded-xl shrink-0"
+                >
+                  {savingZoom ? '...' : 'حفظ'}
+                </button>
               </div>
+              {savedMeetingMsg && <p className="text-[11px] text-amber-200 font-bold">{savedMeetingMsg}</p>}
             </div>
           </div>
         </div>
@@ -858,7 +893,7 @@ export const TeacherDashboard: React.FC = () => {
               </div>
 
               <a
-                href={zoomUrl}
+                href={savedZoom || undefined}
                 target="_blank"
                 rel="noreferrer"
                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0"
@@ -871,7 +906,7 @@ export const TeacherDashboard: React.FC = () => {
             <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
               <span className="font-bold text-emerald-950">رابط القاعة الحالي:</span>
               <span className="font-mono bg-white px-3 py-1.5 rounded-xl border border-emerald-300 text-emerald-800 font-bold" dir="ltr">
-                {zoomUrl}
+                {savedZoom || 'لسه ما حفظت رابط — أضفه وأضغط «حفظ» في أعلى اللوحة'}
               </span>
               <button
                 onClick={handleCopyMeetingLink}

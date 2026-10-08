@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar as CalendarIcon, Clock, Video, Bell, ChevronRight, ChevronLeft, Plus, CheckCircle2, User, BookOpen } from 'lucide-react';
+import { useMyTeacher } from '../../context/AppContext';
 import { SessionRecord, UserRole } from '../../types';
 
 export interface CalendarEvent {
@@ -30,47 +31,25 @@ export const InteractiveSessionsCalendar: React.FC<InteractiveSessionsCalendarPr
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
-  const [currentMonthName, setCurrentMonthName] = useState<string>('أكتوبر 2026');
+  const [currentMonthName, setCurrentMonthName] = useState<string>(
+    new Date().toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })
+  );
 
   // Reminders state
   const [reminderToast, setReminderToast] = useState<string | null>(null);
 
-  // Default sample scheduled upcoming sessions
-  const [scheduledEvents, setScheduledEvents] = useState<CalendarEvent[]>([
-    {
-      id: 'evt_1',
-      title: 'حلسة حفظ وتسميع سورة البقرة',
-      date: new Date().toISOString().split('T')[0],
-      time: '05:30 مساءً',
-      teacherName: 'أ. عائشة محمود العلي',
-      studentName: 'عبدالرحمن الشمري',
-      surahFocus: 'سورة البقرة (آيات 1 - 25)',
-      zoomUrl: 'https://zoom.us/j/9876543210',
-      status: 'upcoming',
-      minutesUntilSession: 15,
-    },
-    {
-      id: 'evt_2',
-      title: 'مراجعة وتثبيت سورة آل عمران',
-      date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-      time: '06:00 مساءً',
-      teacherName: 'أ. فاطمة الزهراء',
-      studentName: 'عبدالرحمن الشمري',
-      surahFocus: 'سورة آل عمران (آيات 1 - 30)',
-      zoomUrl: 'https://zoom.us/j/9876543210',
-      status: 'upcoming',
-      minutesUntilSession: 1440,
-    },
-  ]);
+  // المواعيد القادمة تبدأ فاضية (بدون مواعيد وهمية) — رابط الحصة هو الرابط الحقيقي للمعلم
+  const myTeacher = useMyTeacher();
+  const [scheduledEvents, setScheduledEvents] = useState<CalendarEvent[]>([]);
 
   // Modal for scheduling a new session event
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('جلسة تسميع قرآن كريم');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTime, setNewTime] = useState('04:00 مساءً');
-  const [newSurah, setNewSurah] = useState('سورة البقرة');
+  const [newSurah, setNewSurah] = useState('');
   const [newPartnerName, setNewPartnerName] = useState(
-    userRole === 'teacher' ? 'عبدالرحمن الشمري' : 'أ. عائشة محمود العلي'
+    userRole === 'teacher' ? '' : myTeacher.name
   );
 
   const handleTrigger15MinReminder = (evt: CalendarEvent) => {
@@ -91,7 +70,7 @@ export const InteractiveSessionsCalendar: React.FC<InteractiveSessionsCalendarPr
       teacherName: userRole === 'teacher' ? userName : newPartnerName,
       studentName: userRole === 'student' ? userName : newPartnerName,
       surahFocus: newSurah,
-      zoomUrl: 'https://zoom.us/j/9876543210',
+      zoomUrl: myTeacher.zoomLink,
       status: 'upcoming',
       minutesUntilSession: 60,
     };
@@ -168,7 +147,7 @@ export const InteractiveSessionsCalendar: React.FC<InteractiveSessionsCalendarPr
           </div>
 
           <a
-            href={upcomingEvents[0].zoomUrl}
+            href={upcomingEvents[0].zoomUrl || undefined}
             target="_blank"
             rel="noreferrer"
             className="px-5 py-3 bg-slate-950 hover:bg-slate-900 text-amber-300 font-extrabold text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0"
@@ -226,7 +205,7 @@ export const InteractiveSessionsCalendar: React.FC<InteractiveSessionsCalendarPr
                 </button>
 
                 <a
-                  href={event.zoomUrl}
+                  href={event.zoomUrl || undefined}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl flex items-center gap-1"

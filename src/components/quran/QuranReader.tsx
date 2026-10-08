@@ -65,7 +65,8 @@ export const QuranReader: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'Meccan' | 'Medinan'>('all');
 
-  const { t } = useApp();
+  const { t, userData } = useApp();
+  const ayahNotes: Record<string, unknown> = userData.ayah_notes || {};
   const quranContainerRef = useRef<HTMLDivElement>(null);
   const [isCachedOffline, setIsCachedOffline] = useState(false);
   const [isCachingProgress, setIsCachingProgress] = useState(false);
@@ -1098,7 +1099,7 @@ export const QuranReader: React.FC = () => {
                               setIsNoteModalOpen(true);
                             }}
                             className={`px-3 py-1.5 font-bold rounded-xl border flex items-center gap-1.5 transition-all ${
-                              localStorage.getItem(`quran_note_${selectedSurah.number}_${ayah.numberInSurah}`)
+                              ayahNotes[`${selectedSurah.number}_${ayah.numberInSurah}`]
                                 ? 'bg-emerald-800 text-amber-300 border-emerald-600 font-extrabold shadow-sm'
                                 : isNightMode
                                 ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -1108,7 +1109,7 @@ export const QuranReader: React.FC = () => {
                           >
                             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                             <span>
-                              {localStorage.getItem(`quran_note_${selectedSurah.number}_${ayah.numberInSurah}`)
+                              {ayahNotes[`${selectedSurah.number}_${ayah.numberInSurah}`]
                                 ? 'تدوينة محفوظة 📝'
                                 : 'تدوين ملاحظة 📝'}
                             </span>

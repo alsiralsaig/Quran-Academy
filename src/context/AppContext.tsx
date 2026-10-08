@@ -98,6 +98,16 @@ interface AppContextType {
   approveTeacher: (teacherId: string, hourlyRate?: number) => void;
   rejectTeacher: (teacherId: string, reason: string) => void;
   updateMyZoomLink: (link: string) => Promise<void>;
+  sendDirectNotification: (data: {
+    recipientIds?: string[];
+    all?: boolean;
+    kind: 'encouragement' | 'attendance' | 'homework';
+    title: string;
+    message: string;
+  }) => Promise<number>;
+  /** بيانات المستخدم الشخصية المحفوظة في قاعدة البيانات (تتزامن بين الأجهزة) */
+  userData: Partial<Record<UserDataKey, any>>;
+  saveUserData: (key: UserDataKey, value: any) => void;
 
   // Package Management
   addPackage: (pkg: Omit<Package, 'id'>) => void;
@@ -136,6 +146,22 @@ interface AppContextType {
   createCloudBackupSnapshot: (type?: 'manual' | 'auto') => BackupSnapshot;
   restoreFromSnapshot: (snapshotId: string) => boolean;
 }
+
+export type UserDataKey =
+  | 'weekly_goals'
+  | 'quick_reviews'
+  | 'ayah_notes'
+  | 'archived_circles'
+  | 'memorized_surahs'
+  | 'memorization_days';
+
+/** مفاتيح التخزين المحلي القديمة — تُنقل لقاعدة البيانات مرة واحدة ثم تُمسح */
+const LEGACY_KEYS: Partial<Record<UserDataKey, string>> = {
+  weekly_goals: 'etqan_weekly_quran_goals',
+  quick_reviews: 'etqan_student_quick_reviews',
+  archived_circles: 'etqan_archived_circles_db',
+};
+const LEGACY_NOTE_PREFIX = 'quran_note_';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -209,6 +235,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [backups, setBackups] = useState<BackupSnapshot[]>([]);
+  const [userData, setUserData] = useState<Partial<Record<UserDataKey, any>>>({});
+  const pendingSaves = useRef<Map<UserDataKey, number>>(new Map());
 
   const showToast = useCallback((text: string, type: 'error' | 'success' | 'info' = 'error') => {
     setToast({ text, type });
@@ -226,6 +254,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStudents((b.students || []).map(withAvatar));
     setSubscriptions(b.subscriptions || []);
     setSessions(b.sessions || []);
+    // لا نكتب فوق مفتاح عنده حفظ معلّق (تعديل لسه ما وصل السيرفر)
+    const serverData = (b.userData || {}) as Partial<Record<UserDataKey, any>>;
+    setUserData((prev) => {
+      if (!user) return {};
+      const next: Partial<Record<UserDataKey, any>> = { ...serverData };
+      pendingSaves.current.forEach((_t, k) => {
+        if (k in prev) next[k] = prev[k];
+      });
+      return next;
+    });
+    if (user) migrateLegacy(serverData);
     setNotifications(
       (b.notifications || []).map((n: any) => ({ ...n, createdAt: relativeTimeAr(n.createdAt) }))
     );
@@ -289,6 +328,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     [refresh, showToast]
   );
+
+  // ── بيانات المستخدم الشخصية
+  const flushUserData = useCallback(
+    async (key: UserDataKey, value: any) => {
+      try {
+        await api('PUT', `/me/data/${key}`, { value });
+      } catch (e: any) {
+        showToast(e?.message ? `ما اتحفظ في السحابة: ${e.message}` : 'ما اتحفظ في السحابة — اتأكد من الاتصال');
+      } finally {
+        pendingSaves.current.delete(key);
+      }
+    },
+    [showToast]
+  );
+
+  const saveUserData = useCallback(
+    (key: UserDataKey, value: any) => {
+      setUserData((prev) => ({ ...prev, [key]: value }));
+      const old = pendingSaves.current.get(key);
+      if (old) window.clearTimeout(old);
+      const t = window.setTimeout(() => void flushUserData(key, value), 700);
+      pendingSaves.current.set(key, t);
+    },
+    [flushUserData]
+  );
+
+  /** نقل البيانات المحفوظة في المتصفح قديماً إلى قاعدة البيانات (مرة واحدة) */
+  function migrateLegacy(serverData: Partial<Record<UserDataKey, any>>) {
+    try {
+      (Object.keys(LEGACY_KEYS) as UserDataKey[]).forEach((key) => {
+        const legacy = LEGACY_KEYS[key] as string;
+        const raw = localStorage.getItem(legacy);
+        if (raw == null) return;
+        if (serverData[key] === undefined) {
+          const parsed = JSON.parse(raw);
+          if (parsed != null) saveUserData(key, parsed);
+        }
+        localStorage.removeItem(legacy);
+      });
+      const noteKeys = Object.keys(localStorage).filter((k) => k.startsWith(LEGACY_NOTE_PREFIX));
+      if (noteKeys.length) {
+        const notes: Record<string, unknown> = { ...(serverData.ayah_notes || {}) };
+        noteKeys.forEach((k) => {
+          const id = k.slice(LEGACY_NOTE_PREFIX.length);
+          if (notes[id] === undefined) {
+            try {
+              notes[id] = JSON.parse(localStorage.getItem(k) || 'null');
+            } catch {}
+          }
+          localStorage.removeItem(k);
+        });
+        saveUserData('ayah_notes', notes);
+      }
+      localStorage.removeItem('teacher_direct_notifications');
+    } catch {}
+  }
+
+  const sendDirectNotification: AppContextType['sendDirectNotification'] = async (data) => {
+    const r = await run(() => api<{ sent: number }>('POST', '/notifications/send', data), { refresh: false, rethrow: true });
+    return r?.sent ?? 0;
+  };
 
   // ── الحساب
   const login = async (phone: string, password: string) => {
@@ -552,6 +652,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveTeacher,
         rejectTeacher,
         updateMyZoomLink,
+        sendDirectNotification,
+        userData,
+        saveUserData,
         addPackage,
         updatePackage,
         deletePackage,
@@ -583,4 +686,16 @@ export const useApp = () => {
     throw new Error('useApp must be used within an AppProvider');
   }
   return context;
+};
+
+/** المعلم الحقيقي للمستخدم الحالي: للطالب = معلم اشتراكه المعتمد، وللمعلم = نفسه */
+export const useMyTeacher = (): { name: string; zoomLink: string } => {
+  const { currentUser, subscriptions, teachers } = useApp();
+  if (currentUser.role === 'teacher') {
+    const me = teachers.find((t) => t.id === currentUser.id);
+    return { name: currentUser.name, zoomLink: me?.zoomLink || '' };
+  }
+  const sub = subscriptions.find((s) => s.studentId === currentUser.id && s.paymentStatus === 'approved');
+  const t = sub ? teachers.find((x) => x.id === sub.teacherId) : undefined;
+  return { name: sub?.teacherName || t?.name || 'معلم/ة الحلقة', zoomLink: t?.zoomLink || '' };
 };

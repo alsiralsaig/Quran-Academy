@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
 import {
   Target,
   CheckCircle2,
@@ -22,36 +23,25 @@ export interface DayGoal {
 }
 
 const DEFAULT_WEEKLY_GOALS: DayGoal[] = [
-  { dayName: 'الأحد', targetPages: 2, completedPages: 2 },
-  { dayName: 'الإثنين', targetPages: 2, completedPages: 2 },
-  { dayName: 'الثلاثاء', targetPages: 2, completedPages: 1 },
-  { dayName: 'الأربعاء', targetPages: 2, completedPages: 2 },
+  { dayName: 'الأحد', targetPages: 2, completedPages: 0 },
+  { dayName: 'الإثنين', targetPages: 2, completedPages: 0 },
+  { dayName: 'الثلاثاء', targetPages: 2, completedPages: 0 },
+  { dayName: 'الأربعاء', targetPages: 2, completedPages: 0 },
   { dayName: 'الخميس', targetPages: 2, completedPages: 0 },
-  { dayName: 'الجمعة', targetPages: 1, completedPages: 1 },
-  { dayName: 'السبت', targetPages: 3, completedPages: 2 },
+  { dayName: 'الجمعة', targetPages: 1, completedPages: 0 },
+  { dayName: 'السبت', targetPages: 3, completedPages: 0 },
 ];
 
 export const WeeklyGoalsPlanner: React.FC = () => {
-  const STORAGE_KEY = 'etqan_weekly_quran_goals';
-  const [goals, setGoals] = useState<DayGoal[]>(DEFAULT_WEEKLY_GOALS);
+  // الأهداف محفوظة في قاعدة البيانات مع حساب الطالب (تظهر في أي جهاز)
+  const { userData, saveUserData } = useApp();
+  const goals: DayGoal[] = Array.isArray(userData.weekly_goals) ? userData.weekly_goals : DEFAULT_WEEKLY_GOALS;
+  const setGoals = (g: DayGoal[]) => saveUserData('weekly_goals', g);
   const [isEditingTargets, setIsEditingTargets] = useState<boolean>(false);
   const [saveToast, setSaveToast] = useState<boolean>(false);
 
-  // Load saved goals from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setGoals(JSON.parse(saved));
-      } catch {
-        setGoals(DEFAULT_WEEKLY_GOALS);
-      }
-    }
-  }, []);
-
   const saveGoalsToStorage = (updatedGoals: DayGoal[]) => {
     setGoals(updatedGoals);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedGoals));
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 2000);
   };

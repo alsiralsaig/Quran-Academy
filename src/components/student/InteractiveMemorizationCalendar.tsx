@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar as CalendarIcon, CheckCircle2, Flame, Sparkles, BookOpen, Clock, ChevronRight, ChevronLeft, Award } from 'lucide-react';
 import { triggerFireworksCelebration } from '../achievements/AchievementCelebrationModal';
+import { useApp } from '../../context/AppContext';
 
 export interface DailyMemorizationTask {
   dayNumber: number;
@@ -19,68 +20,51 @@ export const InteractiveMemorizationCalendar: React.FC<InteractiveMemorizationCa
   studentName,
   onStreakUpdate,
 }) => {
-  // Generate default 30 days for October 2026
-  const initialDays: DailyMemorizationTask[] = Array.from({ length: 30 }, (_, index) => {
+  // أيام الشهر الحالي الحقيقي؛ الإنجاز محفوظ في قاعدة البيانات مع حساب الطالب
+  const { userData, saveUserData } = useApp();
+  const done: Record<string, boolean> = userData.memorization_days || {};
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const today = now.getDate();
+
+  const daysList: DailyMemorizationTask[] = Array.from({ length: daysInMonth }, (_, index) => {
     const day = index + 1;
-    const isPastCompleted = day <= 12; // Days 1-12 completed for demo
-    
-    // Sample Quran memorization plan sequence
-    let plan = 'حفظ مقطع جديد';
-    if (day <= 5) plan = `حفظ سورة الملك - صفحة ${day}`;
-    else if (day <= 10) plan = `حفظ سورة النبأ - صفحة ${day - 5}`;
-    else if (day <= 15) plan = `حفظ سورة النازعات - صفحة ${day - 10}`;
-    else if (day <= 20) plan = `مراجعة وتثبيت جزء عمّ كاملاً`;
-    else if (day <= 25) plan = `حفظ سورة الأعلى والطارق`;
-    else plan = `تسميع واختبار السور الجديدة`;
-
-    return {
-      dayNumber: day,
-      dateStr: `2026-10-${day.toString().padStart(2, '0')}`,
-      planTitle: plan,
-      completed: isPastCompleted,
-      notes: isPastCompleted ? 'تم التسميع بنجاح لمدرسة الحلقة' : undefined,
-    };
+    const dateStr = `${ym}-${String(day).padStart(2, '0')}`;
+    const weekday = new Date(now.getFullYear(), now.getMonth(), day).getDay();
+    const plan = weekday === 5 ? 'مراجعة وتثبيت محفوظ الأسبوع' : 'ورد الحفظ اليومي';
+    return { dayNumber: day, dateStr, planTitle: plan, completed: !!done[dateStr] };
   });
-
-  const [daysList, setDaysList] = useState<DailyMemorizationTask[]>(initialDays);
-  const [selectedDay, setSelectedDay] = useState<DailyMemorizationTask>(daysList[11]); // Default to today (Day 12)
+  const [selectedDayNumber, setSelectedDayNumber] = useState<number>(today);
+  const selectedDay = daysList[selectedDayNumber - 1] || daysList[0];
+  const setSelectedDay = (d: DailyMemorizationTask) => setSelectedDayNumber(d.dayNumber);
 
   // Calculate stats
   const completedDaysCount = daysList.filter((d) => d.completed).length;
   const completionPercentage = Math.round((completedDaysCount / daysList.length) * 100);
 
-  // Calculate current active streak
+  // السلسلة: أيام متتالية منجزة تنتهي اليوم (أو أمس لو اليوم لسه ما اتسجّل)
   let currentStreak = 0;
-  for (let i = 0; i < daysList.length; i++) {
-    if (daysList[i].completed) {
+  {
+    let i = daysList[today - 1]?.completed ? today - 1 : today - 2;
+    while (i >= 0 && daysList[i].completed) {
       currentStreak++;
-    } else {
-      break;
+      i--;
     }
   }
 
   const handleToggleDayCompletion = (dayNumber: number) => {
-    setDaysList((prev) =>
-      prev.map((item) => {
-        if (item.dayNumber === dayNumber) {
-          const nextState = !item.completed;
-          
-          if (nextState) {
-            // Trigger fireworks celebration for daily accomplishment!
-            triggerFireworksCelebration();
-          }
-
-          return { ...item, completed: nextState };
-        }
-        return item;
-      })
-    );
-
-    // Update selected day view
-    setSelectedDay((prev) => ({
-      ...prev,
-      completed: prev.dayNumber === dayNumber ? !prev.completed : prev.completed,
-    }));
+    const item = daysList[dayNumber - 1];
+    if (!item) return;
+    const next = { ...done };
+    if (item.completed) delete next[item.dateStr];
+    else {
+      next[item.dateStr] = true;
+      triggerFireworksCelebration();
+    }
+    // نحتفظ بآخر ~400 يوم فقط
+    const keys = Object.keys(next).sort().slice(-400);
+    saveUserData('memorization_days', Object.fromEntries(keys.map((k) => [k, true])));
   };
 
   return (

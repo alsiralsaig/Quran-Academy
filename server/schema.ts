@@ -3,7 +3,7 @@ import type { Db } from './db.js';
 import { hashPassword, normalizePhone } from './auth.js';
 import { DEFAULT_PACKAGES, DEFAULT_BANK_ACCOUNTS } from './seed.js';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS schema_meta (
@@ -119,6 +119,13 @@ const DDL: string[] = [
      active BOOLEAN NOT NULL DEFAULT true,
      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE TABLE IF NOT EXISTS user_data (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     key TEXT NOT NULL,
+     value JSONB NOT NULL,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     PRIMARY KEY (user_id, key)
    )`,
   `CREATE TABLE IF NOT EXISTS rate_limits (
      key TEXT NOT NULL,

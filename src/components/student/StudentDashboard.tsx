@@ -65,6 +65,13 @@ export const StudentDashboard: React.FC = () => {
   // Active student account or fallback
   const studentName = currentUser.name;
 
+  const myTeacherLinks = Array.from(
+    new Set(subscriptions.filter((s) => s.studentId === currentUser.id && s.paymentStatus === 'approved').map((s) => s.teacherId))
+  )
+    .map((id) => teachers.find((t) => t.id === id))
+    .filter((t): t is TeacherProfile => !!t && !!t.zoomLink && /^https:\/\//i.test(t.zoomLink))
+    .map((t) => ({ id: t.id, name: t.name, link: t.zoomLink as string }));
+
   // Subscription wizard state
   const [showSubscribeWizard, setShowSubscribeWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
@@ -272,30 +279,27 @@ export const StudentDashboard: React.FC = () => {
               </button>
 
               <button
-                onClick={() =>
-                  setActiveCelebration({
-                    id: 'milestone_1',
-                    title: 'حفظ وتثبيت سورة البقرة المباركة كاملاً',
-                    surahOrBadge: 'سورة البقرة',
-                    pointsAwarded: 100,
-                    description: 'تهانينا الحارة من إدارة أكاديمية إتقان ومعلمتكِ المشرفة بمناسبة إتمام حفظ وتسميع آيات سورة البقرة المباركة مع إتقان أحكام التجويد والترتيل.',
-                    iconType: 'trophy',
-                    dateEarned: new Date().toISOString().split('T')[0],
-                  })
-                }
-                className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-1.5"
-              >
-                <Sparkles className="w-4 h-4 text-slate-950" />
-                احتفل بإنجاز حفظ سورة 🎉
-              </button>
-
-              <button
                 onClick={() => setIsClassroomOpen(true)}
                 className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 border border-emerald-400/30"
               >
                 <Video className="w-4 h-4 text-amber-300 animate-pulse" />
                 دخول القاعة والحصة المباشرة 🎙️
               </button>
+
+              {/* روابط الحصص الحقيقية من معلمي الطالب (اشتراك معتمد) */}
+              {myTeacherLinks.map((t) => (
+                <a
+                  key={t.id}
+                  href={t.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-zoom-link={t.id}
+                  className="px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
+                >
+                  <Video className="w-4 h-4" />
+                  رابط حصة {t.name} (Zoom / Meet)
+                </a>
+              ))}
             </div>
           </div>
 

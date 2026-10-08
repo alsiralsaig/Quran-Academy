@@ -14,6 +14,7 @@ import {
   QrCode,
   Send
 } from 'lucide-react';
+import { useMyTeacher } from '../../context/AppContext';
 import { triggerFireworksCelebration } from '../achievements/AchievementCelebrationModal';
 
 export interface DigitalCompletionCertificateProps {
@@ -31,6 +32,7 @@ export const DigitalCompletionCertificate: React.FC<DigitalCompletionCertificate
   juzTitle = 'جزء عمّ (الجزء الثلاثون)',
   completionDate = new Date().toISOString().split('T')[0],
 }) => {
+  const myTeacher = useMyTeacher();
   const [emailSentSuccess, setEmailSentSuccess] = useState(false);
   const certificateRef = useRef<HTMLDivElement>(null);
 
@@ -184,7 +186,7 @@ export const DigitalCompletionCertificate: React.FC<DigitalCompletionCertificate
           <div className="pt-6 border-t-2 border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs">
             <div className="text-center sm:text-right space-y-1">
               <span className="text-slate-500 font-bold block">توقيع المعلمة المشرفة:</span>
-              <p className="font-serif italic font-black text-emerald-900 text-sm">أ. عائشة محمود العلي</p>
+              <p className="font-serif italic font-black text-emerald-900 text-sm">{myTeacher.name}</p>
             </div>
 
             {/* Official Academy Gold Badge Stamp */}

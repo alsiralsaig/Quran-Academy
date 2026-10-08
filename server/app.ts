@@ -460,17 +460,33 @@ route('GET', '/bootstrap', async (c) => {
   const teacherRows = isAdmin
     ? await db.query(`${TEACHER_SELECT} ORDER BY u.created_at DESC`)
     : await db.query(`${TEACHER_SELECT} WHERE tp.status = 'approved' OR u.id = $1 ORDER BY u.created_at`, [me?.id || '']);
-  out.teachers = teacherRows.map((r) => teacherOut(r, isAdmin || r.id === me?.id));
+  // رابط الحصة يظهر فقط للمعلم نفسه والمدير والطلاب المشتركين معه باشتراك معتمد
+  let myTeacherIds = new Set<string>();
+  if (me?.role === 'student') {
+    const rows = await db.query<{ teacher_id: string }>(
+      `SELECT DISTINCT teacher_id FROM subscriptions WHERE student_id = $1 AND payment_status = 'approved'`,
+      [me.id]
+    );
+    myTeacherIds = new Set(rows.map((r) => r.teacher_id));
+  }
+  out.teachers = teacherRows.map((r) => {
+    const full = isAdmin || r.id === me?.id;
+    const t = teacherOut(r, full);
+    if (!full && !myTeacherIds.has(r.id)) delete t.zoomLink;
+    return t;
+  });
 
   if (!me) return out;
 
   const audience = me.role === 'admin' ? ['all', 'teachers', 'students'] : me.role === 'teacher' ? ['all', 'teachers'] : ['all', 'students'];
-  const [bc, notif] = await Promise.all([
+  const [bc, notif, ud] = await Promise.all([
     db.query(`SELECT * FROM broadcasts WHERE active AND target_role = ANY($1) ORDER BY created_at DESC LIMIT 20`, [audience]),
     db.query(`SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC LIMIT 100`, [me.id]),
+    db.query<{ key: string; value: unknown }>(`SELECT key, value FROM user_data WHERE user_id = $1`, [me.id]),
   ]);
   out.broadcasts = bc.map(broadcastOut);
   out.notifications = notif.map(notifOut);
+  out.userData = Object.fromEntries(ud.map((r) => [r.key, r.value]));
 
   if (me.role === 'admin') {
     const [stu, subs, ses] = await Promise.all([
@@ -828,6 +844,68 @@ route('DELETE', '/notifications', async (c) => {
   return { ok: true };
 });
 
+// ── تنبيهات مباشرة من المعلم لطلابه (أو من المدير لأي مستخدم)
+route('POST', '/notifications/send', async (c) => {
+  const me = requireUser(c, 'teacher', 'admin');
+  const b = c.req.body || {};
+  const title = str(b.title, 'العنوان', 200);
+  const message = str(b.message, 'الرسالة', 1500);
+  const kind = oneOf(b.kind || 'encouragement', 'نوع التنبيه', ['encouragement', 'attendance', 'homework'] as const);
+  let ids: string[] = Array.isArray(b.recipientIds) ? b.recipientIds.filter((x: unknown) => typeof x === 'string').slice(0, 200) : [];
+  if (me.role === 'teacher') {
+    const mine = await c.db.query<{ student_id: string }>(
+      `SELECT DISTINCT student_id FROM subscriptions WHERE teacher_id = $1 AND payment_status = 'approved'`,
+      [me.id]
+    );
+    const allowed = new Set(mine.map((r) => r.student_id));
+    ids = b.all ? [...allowed] : ids.filter((id) => allowed.has(id));
+  }
+  if (!ids.length) throw new HttpError(400, 'اختار طالب واحد على الأقل من طلابك المعتمدين');
+  await rateLimit(c.db, `notify:${me.id}`, 300);
+  const type = kind === 'encouragement' ? 'success' : kind === 'attendance' ? 'warning' : 'info';
+  const sender = me.role === 'teacher' ? `من المعلم/ة ${me.name}` : 'من الإدارة';
+  await c.db.tx(
+    ids.map((id) => ({
+      text: `INSERT INTO notifications (id, recipient_id, recipient_role, title, message, type, link_tab)
+             SELECT $1, id, role, $2, $3, $4, 'workspace' FROM users WHERE id = $5`,
+      params: [newId('ntf'), title, `${message}\n— ${sender}`, type, id],
+    }))
+  );
+  return { ok: true, sent: ids.length };
+});
+
+// ── بيانات المستخدم الشخصية (أهداف، مراجعات، ملاحظات الآيات، الحلقات المؤرشفة…)
+const USER_DATA_KEYS = [
+  'weekly_goals', 'quick_reviews', 'ayah_notes', 'archived_circles', 'memorized_surahs', 'memorization_days',
+] as const;
+const USER_DATA_MAX = 300_000; // حرف
+
+route('GET', '/me/data', async (c) => {
+  const me = requireUser(c);
+  const rows = await c.db.query<{ key: string; value: unknown; updated_at: string }>(
+    `SELECT key, value, updated_at FROM user_data WHERE user_id = $1`,
+    [me.id]
+  );
+  const data: Record<string, unknown> = {};
+  rows.forEach((r) => (data[r.key] = r.value));
+  return { data };
+});
+
+route('PUT', '/me/data/:key', async (c) => {
+  const me = requireUser(c);
+  const key = oneOf(c.params.key, 'المفتاح', USER_DATA_KEYS);
+  const value = (c.req.body || {}).value;
+  if (value === undefined) throw new HttpError(400, 'القيمة مطلوبة');
+  const json = JSON.stringify(value);
+  if (json.length > USER_DATA_MAX) throw new HttpError(413, 'البيانات كبيرة جداً');
+  await c.db.query(
+    `INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3::jsonb, now())
+     ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [me.id, key, json]
+  );
+  return { ok: true };
+});
+
 // ── الإعلانات العامة
 route('POST', '/broadcasts', async (c) => {
   const me = requireUser(c, 'admin');
@@ -876,7 +954,7 @@ route('POST', '/admin/users/:id/active', async (c) => {
 route('GET', '/admin/export', async (c) => {
   requireUser(c, 'admin');
   const db = c.db;
-  const [users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts] = await Promise.all([
+  const [users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts, userData] = await Promise.all([
     db.query(`SELECT id, role, name, phone, email, active, created_at FROM users ORDER BY created_at`),
     db.query(`SELECT * FROM teacher_profiles`),
     db.query(`SELECT * FROM packages ORDER BY sort`),
@@ -884,13 +962,14 @@ route('GET', '/admin/export', async (c) => {
     db.query(`SELECT * FROM subscriptions ORDER BY created_at`),
     db.query(`SELECT * FROM sessions ORDER BY created_at`),
     db.query(`SELECT * FROM broadcasts ORDER BY created_at`),
+    db.query(`SELECT * FROM user_data ORDER BY user_id, key`),
   ]);
   return {
     format: 'quran-academy-backup',
     version: 1,
     exportedAt: new Date().toISOString(),
     note: 'كلمات السر وصور الإيصالات غير مضمّنة في النسخة لأسباب أمنية وحجمية',
-    users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts,
+    users, teacherProfiles, packages, settings, subscriptions, sessions, broadcasts, userData,
   };
 });
 

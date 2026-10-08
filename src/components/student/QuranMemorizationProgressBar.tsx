@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BookOpen, CheckCircle2, Award, Plus, Sparkles, TrendingUp, Layers, BookmarkCheck, FileText } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ALL_SURAHS } from '../../data/quranData';
+import { useApp } from '../../context/AppContext';
 import { triggerFireworksCelebration } from '../achievements/AchievementCelebrationModal';
 
 export interface MemorizedSurahEntry {
@@ -21,18 +22,10 @@ export const QuranMemorizationProgressBar: React.FC<QuranMemorizationProgressBar
   studentName,
   onSurahAdded,
 }) => {
-  // Pre-populated default memorized Surahs for demo student (e.g. Juz 30 + Surah Al-Baqarah)
-  const [memorizedSurahs, setMemorizedSurahs] = useState<MemorizedSurahEntry[]>([
-    { surahNumber: 1, surahName: 'الفاتحة', numberOfAyahs: 7, pageCount: 1, dateCompleted: '2026-01-10' },
-    { surahNumber: 2, surahName: 'البقرة', numberOfAyahs: 286, pageCount: 48, dateCompleted: '2026-08-15' },
-    { surahNumber: 67, surahName: 'الملك', numberOfAyahs: 30, pageCount: 2.5, dateCompleted: '2026-09-01' },
-    { surahNumber: 78, surahName: 'النبأ', numberOfAyahs: 40, pageCount: 1.5, dateCompleted: '2026-09-10' },
-    { surahNumber: 79, surahName: 'النازعات', numberOfAyahs: 46, pageCount: 1.5, dateCompleted: '2026-09-12' },
-    { surahNumber: 80, surahName: 'عبس', numberOfAyahs: 42, pageCount: 1.5, dateCompleted: '2026-09-15' },
-    { surahNumber: 112, surahName: 'الإخلاص', numberOfAyahs: 4, pageCount: 0.5, dateCompleted: '2026-01-05' },
-    { surahNumber: 113, surahName: 'الفلق', numberOfAyahs: 5, pageCount: 0.5, dateCompleted: '2026-01-05' },
-    { surahNumber: 114, surahName: 'الناس', numberOfAyahs: 6, pageCount: 0.5, dateCompleted: '2026-01-05' },
-  ]);
+  // سجل الحفظ الحقيقي للطالب — محفوظ في قاعدة البيانات مع حسابه
+  const { userData, saveUserData } = useApp();
+  const memorizedSurahs: MemorizedSurahEntry[] = Array.isArray(userData.memorized_surahs) ? userData.memorized_surahs : [];
+  const setMemorizedSurahs = (list: MemorizedSurahEntry[]) => saveUserData('memorized_surahs', list);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedSurahNumber, setSelectedSurahNumber] = useState<number>(36); // Default Yasin

@@ -13,6 +13,7 @@ import {
   BookOpen,
   Volume2
 } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
 export interface AyahNoteEntry {
   id: string;
@@ -44,7 +45,10 @@ export const SmartAyahNotesModal: React.FC<SmartAyahNotesModalProps> = ({
   ayahText,
   onNoteSaved,
 }) => {
-  const noteKey = `quran_note_${surahNumber}_${ayahNumber}`;
+  const noteKey = `${surahNumber}_${ayahNumber}`;
+  // ملاحظات الآيات محفوظة في قاعدة البيانات مع الحساب (النص فقط؛ التسجيل الصوتي للجلسة الحالية)
+  const { userData, saveUserData } = useApp();
+  const allNotes: Record<string, AyahNoteEntry> = userData.ayah_notes || {};
 
   const [textNote, setTextNote] = useState<string>('');
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
@@ -56,16 +60,10 @@ export const SmartAyahNotesModal: React.FC<SmartAyahNotesModalProps> = ({
   // Load existing note from localStorage
   useEffect(() => {
     if (isOpen) {
-      const savedData = localStorage.getItem(noteKey);
-      if (savedData) {
-        try {
-          const parsed: AyahNoteEntry = JSON.parse(savedData);
-          setTextNote(parsed.textNote || '');
-          setAudioBlobUrl(parsed.audioNoteBlobUrl || null);
-        } catch {
-          setTextNote('');
-          setAudioBlobUrl(null);
-        }
+      const parsed = allNotes[noteKey];
+      if (parsed) {
+        setTextNote(parsed.textNote || '');
+        setAudioBlobUrl(null);
       } else {
         setTextNote('');
         setAudioBlobUrl(null);
@@ -116,7 +114,8 @@ export const SmartAyahNotesModal: React.FC<SmartAyahNotesModalProps> = ({
       updatedAt: new Date().toISOString().split('T')[0],
     };
 
-    localStorage.setItem(noteKey, JSON.stringify(noteEntry));
+    const { audioNoteBlobUrl: _audio, ...persisted } = noteEntry;
+    saveUserData('ayah_notes', { ...allNotes, [noteKey]: persisted });
     setSaveSuccessMessage(true);
 
     if (onNoteSaved) {
@@ -130,7 +129,9 @@ export const SmartAyahNotesModal: React.FC<SmartAyahNotesModalProps> = ({
   };
 
   const handleDeleteNote = () => {
-    localStorage.removeItem(noteKey);
+    const rest = { ...allNotes };
+    delete rest[noteKey];
+    saveUserData('ayah_notes', rest);
     setTextNote('');
     setAudioBlobUrl(null);
     if (onNoteSaved) {

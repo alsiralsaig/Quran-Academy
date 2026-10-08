@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Play, Pause, Trash2, CheckCircle2, BookOpen, Sparkles, X, Plus, Calendar, Volume2, Save } from 'lucide-react';
 import { ALL_SURAHS } from '../../data/quranData';
+import { useApp } from '../../context/AppContext';
 
 export interface QuickReviewEntry {
   id: string;
@@ -24,7 +25,6 @@ interface QuickReviewModeProps {
   onClose: () => void;
 }
 
-const STORAGE_KEY = 'etqan_student_quick_reviews';
 
 export const QuickReviewMode: React.FC<QuickReviewModeProps> = ({ isOpen, onClose }) => {
   // Audio Recording State
@@ -49,37 +49,24 @@ export const QuickReviewMode: React.FC<QuickReviewModeProps> = ({ isOpen, onClos
     readTafsir: false,
   });
 
-  // Saved Entries State
-  const [savedEntries, setSavedEntries] = useState<QuickReviewEntry[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [
-        {
-          id: 'review_1',
-          date: new Date().toLocaleDateString('ar-SA'),
-          surahName: 'سورة البقرة',
-          fromAyah: 1,
-          toAyah: 20,
-          notes: 'تمت مراجعة المتشابهات والتثبيت الجيد، جاهز للتسميع مع المعلمة.',
-          checklist: { listenedToReciter: true, repeatedDifficultAyahs: true, readTafsir: true },
-          isReadyForClass: true,
-        }
-      ];
-    } catch {
-      return [];
-    }
-  });
+  // المراجعات محفوظة في قاعدة البيانات مع حساب الطالب.
+  // التسجيل الصوتي يبقى في الجلسة الحالية فقط (ما بيترفع للسيرفر).
+  const { userData, saveUserData } = useApp();
+  const [sessionAudio, setSessionAudio] = useState<Record<string, string>>({});
+  const savedEntries: QuickReviewEntry[] = (Array.isArray(userData.quick_reviews) ? userData.quick_reviews : []).map(
+    (e: QuickReviewEntry) => ({ ...e, audioUrl: sessionAudio[e.id] })
+  );
+  const setSavedEntries = (updater: (prev: QuickReviewEntry[]) => QuickReviewEntry[]) => {
+    const next = updater(savedEntries);
+    const audio: Record<string, string> = {};
+    next.forEach((e) => {
+      if (e.audioUrl?.startsWith('blob:')) audio[e.id] = e.audioUrl;
+    });
+    setSessionAudio((prev) => ({ ...prev, ...audio }));
+    saveUserData('quick_reviews', next.slice(0, 200).map(({ audioUrl: _a, ...rest }) => rest));
+  };
 
   const [toastSuccess, setToastSuccess] = useState('');
-
-  // Save to LocalStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedEntries));
-    } catch (e) {
-      console.error('Failed to save quick reviews:', e);
-    }
-  }, [savedEntries]);
 
   // Handle Recording Start/Stop
   const startRecording = async () => {

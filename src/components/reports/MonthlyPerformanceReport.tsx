@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ChevronDown
 } from 'lucide-react';
+import { useMyTeacher } from '../../context/AppContext';
 import { SessionRecord, UserRole } from '../../types';
 
 interface MonthlyPerformanceReportProps {
@@ -28,6 +29,7 @@ export const MonthlyPerformanceReport: React.FC<MonthlyPerformanceReportProps> =
   userRole = 'student',
   sessions = [],
 }) => {
+  const myTeacher = useMyTeacher();
   const [selectedMonth, setSelectedMonth] = useState('أكتوبر 2026');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
@@ -302,7 +304,7 @@ export const MonthlyPerformanceReport: React.FC<MonthlyPerformanceReportProps> =
           <div className="flex items-center gap-8 text-center text-[11px] text-slate-600">
             <div>
               <span className="block font-bold">توقيع المعلمة المشرفة</span>
-              <span className="font-serif italic font-bold text-emerald-900">أ. عائشة محمود</span>
+              <span className="font-serif italic font-bold text-emerald-900">{myTeacher.name}</span>
             </div>
             <div>
               <span className="block font-bold">ختم الأكاديمية</span>

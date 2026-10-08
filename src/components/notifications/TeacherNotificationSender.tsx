@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send, Bell, Sparkles, Clock, BookOpen, Heart, CheckCircle2, User, Volume2 } from 'lucide-react';
 import { TeacherNotification } from '../../types';
+import { useApp } from '../../context/AppContext';
 
 interface TeacherNotificationSenderProps {
   teacherName: string;
@@ -11,10 +12,21 @@ export const TeacherNotificationSender: React.FC<TeacherNotificationSenderProps>
   teacherName,
   onNotificationSent,
 }) => {
-  const [selectedStudent, setSelectedStudent] = useState('عبدالرحمن الشمري');
+  // طلاب المعلم الحقيقيين (اشتراكات معتمدة)
+  const { subscriptions, currentUser, sendDirectNotification } = useApp();
+  const myStudents = Array.from(
+    new Map(
+      subscriptions
+        .filter((s) => s.teacherId === currentUser.id && s.paymentStatus === 'approved')
+        .map((s) => [s.studentId, { id: s.studentId, name: s.studentName, pkg: s.packageName }])
+    ).values()
+  );
+  const [selectedStudent, setSelectedStudent] = useState<string>('all');
+  const [sending, setSending] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
   const [notificationType, setNotificationType] = useState<'encouragement' | 'attendance' | 'homework'>('encouragement');
   const [title, setTitle] = useState('أحسنتِ وأبدعتِ اليوم في التسميع! 🌟');
-  const [message, setMessage] = useState('أداء ممتاز وتجويد نقي لمخارج الحروف في سورة البقرة. استمري في هذا الإتقان والتميز المبارك!');
+  const [message, setMessage] = useState('أداء ممتاز وتجويد نقي لمخارج الحروف في حلقة اليوم. بارك الله في حفظك وزادكِ علماً وإتقاناً!');
   const [isSuccessToast, setIsSuccessToast] = useState(false);
 
   // Ready templates
@@ -32,31 +44,39 @@ export const TeacherNotificationSender: React.FC<TeacherNotificationSenderProps>
     }
   };
 
-  const handleSendNotification = (e: React.FormEvent) => {
+  const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
-
-    const newNotification: TeacherNotification = {
-      id: `t_notif_${Date.now()}`,
-      senderTeacherName: teacherName,
-      studentId: 'st_1',
-      studentName: selectedStudent,
-      type: notificationType,
-      title,
-      message,
-      sentAt: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-      read: false,
-    };
-
-    // Save to localStorage for cross-dashboard communication
-    const existing = JSON.parse(localStorage.getItem('teacher_direct_notifications') || '[]');
-    localStorage.setItem('teacher_direct_notifications', JSON.stringify([newNotification, ...existing]));
-
-    setIsSuccessToast(true);
-    setTimeout(() => setIsSuccessToast(false), 4000);
-
-    if (onNotificationSent) {
-      onNotificationSent(newNotification);
+    if (!message.trim() || !title.trim() || sending) return;
+    setSending(true);
+    try {
+      const sent = await sendDirectNotification({
+        all: selectedStudent === 'all',
+        recipientIds: selectedStudent === 'all' ? undefined : [selectedStudent],
+        kind: notificationType,
+        title: title.trim(),
+        message: message.trim(),
+      });
+      setSentCount(sent);
+      setIsSuccessToast(true);
+      setTimeout(() => setIsSuccessToast(false), 4000);
+      if (onNotificationSent) {
+        const n: TeacherNotification = {
+          id: `t_notif_${Date.now()}`,
+          senderTeacherName: teacherName,
+          studentId: selectedStudent,
+          studentName: selectedStudent === 'all' ? 'جميع طلابي' : myStudents.find((x) => x.id === selectedStudent)?.name || '',
+          type: notificationType,
+          title,
+          message,
+          sentAt: new Date().toISOString(),
+          read: false,
+        };
+        onNotificationSent(n);
+      }
+    } catch {
+      /* الرسالة بتظهر من النظام */
+    } finally {
+      setSending(false);
     }
   };
 
@@ -71,14 +91,14 @@ export const TeacherNotificationSender: React.FC<TeacherNotificationSenderProps>
         <div>
           <div className="flex items-center gap-2">
             <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300">
-              Direct Teacher Alerts & Toasts
+              تنبيهات مباشرة
             </span>
           </div>
           <h3 className="font-extrabold text-slate-900 text-lg font-serif">
             إرسال تنبيهات تشجيعية وتذكيرات حضور للطلاب
           </h3>
           <p className="text-xs text-slate-500">
-            أرسلي رسالة تشجيعية أو تذكير بموعد الحلقة تظهر فوراً كإشعار منبثق (Toast) في لوحة تحكم الطالب.
+            أرسلي رسالة تشجيعية أو تذكير بموعد الحلقة لطلابك المعتمدين — بتظهر ليهم كإشعار في لوحتهم.
           </p>
         </div>
       </div>
@@ -88,7 +108,7 @@ export const TeacherNotificationSender: React.FC<TeacherNotificationSenderProps>
         <div className="p-4 bg-emerald-600 text-white font-extrabold text-xs rounded-2xl shadow-lg flex items-center justify-between gap-3 animate-bounce">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-amber-300 shrink-0" />
-            <span>تم إرسال التنبيه التشجيعي إلى لوحة تحكم الطالب ({selectedStudent}) بنجاح! سيظهر كإشعار منبثق عند دخوله.</span>
+            <span>اتأرسل التنبيه لـ {sentCount} {sentCount === 1 ? 'طالب' : 'طلاب'} — بيظهر ليهم كإشعار أول ما يفتحوا لوحتهم من أي جهاز.</span>
           </div>
         </div>
       )}
@@ -148,9 +168,12 @@ export const TeacherNotificationSender: React.FC<TeacherNotificationSenderProps>
               onChange={(e) => setSelectedStudent(e.target.value)}
               className="w-full p-3 border rounded-xl font-bold bg-white text-slate-900 focus:outline-none"
             >
-              <option value="عبدالرحمن الشمري">عبدالرحمن الشمري (حلقة سورة البقرة)</option>
-              <option value="مريم الخالدي">مريم الخالدي (حلقة جزء عمّ)</option>
-              <option value="جميع طلاب الحلقة">جميع طلاب الحلقة المباركة 👥</option>
+              <option value="all">جميع طلابي ({myStudents.length}) 👥</option>
+              {myStudents.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name} — {st.pkg}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -180,10 +203,11 @@ export const TeacherNotificationSender: React.FC<TeacherNotificationSenderProps>
         <div className="flex items-center justify-end">
           <button
             type="submit"
-            className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center gap-2"
+            disabled={sending || myStudents.length === 0}
+            className="disabled:opacity-50 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center gap-2"
           >
             <Send className="w-4 h-4" />
-            إرسال التنبيه الفوري للطالب 🚀
+            {sending ? 'جاري الإرسال...' : myStudents.length === 0 ? 'ما عندك طلاب معتمدين لسه' : 'إرسال التنبيه 🚀'}
           </button>
         </div>
       </form>
