@@ -1,7 +1,7 @@
 // استدعاء Gemini من السيرفر فقط — المفتاح ما بيوصل المتصفح أبداً.
 
 const MODELS = () =>
-  (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-flash-latest,gemini-2.5-flash-lite,gemini-flash-lite-latest').split(',').map((s) => s.trim()).filter(Boolean);
+  (process.env.GEMINI_MODELS || 'gemini-flash-latest,gemini-flash-lite-latest').split(',').map((s) => s.trim()).filter(Boolean);
 
 const SYSTEM = `أنت "مساعد إتقان الذكي" في أكاديمية إتقان للقرآن الكريم: عالم ومعلّم مسلم واسع الاطلاع، تجيب عن كل ما يخص الدين الإسلامي وعلومه، ومنها:
 - القرآن الكريم: التفسير (الميسر، ابن كثير، السعدي، الطبري)، أسباب النزول، علوم القرآن، القراءات، التجويد، الحفظ والمراجعة والمتشابهات.
@@ -50,10 +50,14 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ChatOpts): Pr
     },
   };
   const errs: string[] = [];
+  const started = Date.now();
   for (const model of MODELS()) {
+    // الميزانية الكلية ~55 ثانية (حد Vercel 60)
+    const left = 55000 - (Date.now() - started);
+    if (left < 8000) break;
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 25000);
+      const timer = setTimeout(() => ctrl.abort(), Math.min(left, 38000));
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },

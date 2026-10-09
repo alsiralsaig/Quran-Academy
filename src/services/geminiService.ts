@@ -19,7 +19,7 @@ async function askWithPersonalKey(apiKey: string, prompt: string, context?: stri
   const systemInstruction = `أنت "مساعد إتقان الذكي": عالم ومعلّم مسلم تجيب عن كل ما يخص الدين الإسلامي (القرآن وتفسيره وتجويده، العقيدة، الفقه بالمذاهب الأربعة، الحديث مع مصدره ودرجته، السيرة، الأخلاق، الأذكار).
 أجب بدقة وبعربية ميسرة، واستشهد بالآيات والأحاديث الصحيحة مع مصادرها، ولا تخترع نصاً؛ وإن لم تتأكد فقل ذلك.`;
   const userText = context ? `السياق: ${context}\n\nسؤال المستخدم: ${prompt}` : `سؤال المستخدم: ${prompt}`;
-  for (const model of ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite']) {
+  for (const model of ['gemini-flash-latest', 'gemini-flash-lite-latest']) {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
