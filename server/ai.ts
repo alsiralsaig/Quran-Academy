@@ -57,7 +57,7 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ChatOpts): Pr
     if (left < 8000) break;
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), Math.min(left, 38000));
+      const timer = setTimeout(() => ctrl.abort(), Math.min(left, model.includes("lite") ? 30000 : 22000));
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
