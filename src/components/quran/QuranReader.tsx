@@ -28,7 +28,7 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import { ALL_SURAHS, RECITERS, SAMPLE_SURAHS_AYAS, getAyahAudioUrl } from '../../data/quranData';
+import { ALL_SURAHS, RECITERS, SAMPLE_SURAHS_AYAS } from '../../data/quranData';
 import { QuranSurah, QuranAyah } from '../../types';
 import { fetchAiTafsirForAyah, AiTafsirInsight } from '../../services/geminiTafsirService';
 import { TajweedGuideModal } from './TajweedGuideModal';
@@ -41,7 +41,8 @@ import { InteractiveTajweedGuideModal } from '../tajweed/InteractiveTajweedGuide
 import { SurahAsbabNuzulVideoLibrary } from '../video/SurahAsbabNuzulVideoLibrary';
 import { EasyTafsirSidebar } from './EasyTafsirSidebar';
 import { TafsirReader } from './TafsirReader';
-import { cacheAllSurahsAndTafsirOffline, isQuranCachedOffline } from '../../services/offlineQuranStorage';
+import { getOfflineSurahAyahs, saveSurahText, getPlayableAyahUrl } from '../../services/offlineQuranStorage';
+import { OfflineDownloadPanel } from './OfflineDownloadPanel';
 import { useApp } from '../../context/AppContext';
 
 export const QuranReader: React.FC = () => {
@@ -68,25 +69,7 @@ export const QuranReader: React.FC = () => {
   const { t, userData } = useApp();
   const ayahNotes: Record<string, unknown> = userData.ayah_notes || {};
   const quranContainerRef = useRef<HTMLDivElement>(null);
-  const [isCachedOffline, setIsCachedOffline] = useState(false);
-  const [isCachingProgress, setIsCachingProgress] = useState(false);
-  const [cacheProgressText, setCacheProgressText] = useState('');
-
-  useEffect(() => {
-    isQuranCachedOffline().then(setIsCachedOffline);
-  }, []);
-
-  const handleCacheQuranOffline = async () => {
-    setIsCachingProgress(true);
-    setCacheProgressText('جاري تجهيز وتحميل السور والتفسير...');
-    const ok = await cacheAllSurahsAndTafsirOffline((count, total) => {
-      setCacheProgressText(`جاري حفظ السورة ${count} من ${total}...`);
-    });
-    setIsCachingProgress(false);
-    if (ok) {
-      setIsCachedOffline(true);
-    }
-  };
+  const [textReloadKey, setTextReloadKey] = useState(0);
 
   // Sync fullscreen change event (e.g. when pressing ESC)
   useEffect(() => {
@@ -173,7 +156,16 @@ export const QuranReader: React.FC = () => {
       setAyahs(SAMPLE_SURAHS_AYAS[selectedSurah.number].ayahs);
     } else {
       setLoadingAyahs(true);
-      fetch(`https://api.alquran.cloud/v1/surah/${selectedSurah.number}/editions/quran-uthmani,ar.muyassar`)
+      let cancelled = false;
+      const surahNo = selectedSurah.number;
+      getOfflineSurahAyahs(surahNo).then((offline) => {
+      if (cancelled) return;
+      if (offline && offline.length) {
+        setAyahs(offline);
+        setLoadingAyahs(false);
+        return;
+      }
+      fetch(`https://api.alquran.cloud/v1/surah/${surahNo}/editions/quran-uthmani,ar.muyassar`)
         .then((res) => res.json())
         .then((data) => {
           if (data?.data && Array.isArray(data.data) && data.data.length >= 2) {
@@ -187,7 +179,10 @@ export const QuranReader: React.FC = () => {
               page: a.page,
               tafsirText: tafsirList[idx]?.text || a.text,
             }));
+            if (cancelled) return;
             setAyahs(formattedAyahs);
+            // نحفظ السورة المفتوحة عشان تشتغل بعدين بدون إنترنت
+            saveSurahText(surahNo, formattedAyahs);
           } else if (data?.data?.ayahs) {
             const formattedAyahs: QuranAyah[] = data.data.ayahs.map((a: any) => ({
               number: a.number,
@@ -212,9 +207,13 @@ export const QuranReader: React.FC = () => {
             },
           ]);
         })
-        .finally(() => setLoadingAyahs(false));
+        .finally(() => !cancelled && setLoadingAyahs(false));
+      });
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [selectedSurah]);
+  }, [selectedSurah, textReloadKey]);
 
   // Synchronized Play specific Ayah by Index
   const playAyahAtIndex = (index: number, isContinuous: boolean = true) => {
@@ -229,8 +228,7 @@ export const QuranReader: React.FC = () => {
     }
 
     const ayah = ayahs[index];
-    const audioUrl = getAyahAudioUrl(selectedSurah.number, ayah.numberInSurah, selectedReciter.id);
-    const newAudio = new Audio(audioUrl);
+    const newAudio = new Audio();
     newAudio.playbackRate = playbackRate;
 
     newAudio.ontimeupdate = () => {
@@ -241,7 +239,11 @@ export const QuranReader: React.FC = () => {
       }
     };
 
+    getPlayableAyahUrl(selectedSurah.number, ayah.numberInSurah, selectedReciter.id).then((src) => {
+    newAudio.src = src;
+    newAudio.playbackRate = playbackRate;
     newAudio.play().catch(() => {
+      if (!navigator.onLine) return;
       const surahPadded = selectedSurah.number.toString().padStart(3, '0');
       const ayahPadded = ayah.numberInSurah.toString().padStart(3, '0');
       const altAudio = new Audio(`https://verses.quran.com/Alafasy/mp3/${surahPadded}${ayahPadded}.mp3`);
@@ -254,6 +256,7 @@ export const QuranReader: React.FC = () => {
         }
       };
       altAudio.play().catch(e => console.warn('Audio fallback error:', e));
+    });
     });
 
     setAudioObj(newAudio);
@@ -369,34 +372,8 @@ export const QuranReader: React.FC = () => {
       }`}
     >
       
-      {/* Offline Storage Caching Banner */}
-      <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white rounded-2xl p-4 border border-teal-700/60 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-teal-500/20 text-teal-300 rounded-xl">
-            <BookOpen className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="font-extrabold text-xs sm:text-sm font-serif">
-              {isCachedOffline ? 'تصفح المصحف بدون إنترنت 📶 (Offline Ready)' : 'تفعيل التصفح والقراءة بدون إنترنت'}
-            </h4>
-            <p className="text-[11px] text-teal-200/80">
-              {isCachedOffline
-                ? 'تم حفظ كامل سور القرآن الشريف والتفسير الميسر في الذاكرة المحلية للتصفح عند انقطاع الاتصال.'
-                : 'قم بتحميل وتخزين السور والتفسير محلياً لتصفح وقراءة القرآن دون الحاجة للاتصال بالشبكة.'}
-            </p>
-          </div>
-        </div>
-
-        {!isCachedOffline && (
-          <button
-            onClick={handleCacheQuranOffline}
-            disabled={isCachingProgress}
-            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all shrink-0 disabled:opacity-50"
-          >
-            {isCachingProgress ? cacheProgressText : 'تحميل المصحف للاستخدام بدون إنترنت'}
-          </button>
-        )}
-      </div>
+      {/* تنزيل المصحف بدون إنترنت */}
+      <OfflineDownloadPanel reciter={selectedReciter} surah={selectedSurah} onTextDownloaded={() => setTextReloadKey((k) => k + 1)} />
 
       {/* Quran Header Banner */}
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 border border-emerald-800/60">
@@ -493,14 +470,14 @@ export const QuranReader: React.FC = () => {
           />
 
           {/* QURANIC FONT FAMILY & LINE SPACING SELECTORS */}
-          <div className="flex flex-wrap items-center gap-2 bg-emerald-900/90 p-1.5 rounded-2xl border border-emerald-700/80 shrink-0 text-xs">
+          <div className="flex flex-wrap items-center gap-2 bg-emerald-900/90 p-1.5 rounded-2xl border border-emerald-700/80 shrink-0 text-xs max-w-full">
             {/* Font Selector */}
-            <div className="flex items-center gap-1.5 px-1.5 text-amber-300 font-bold">
-              <span>نوع الخط:</span>
+            <div className="flex items-center gap-1.5 px-1.5 text-amber-300 font-bold min-w-0 max-w-full">
+              <span className="shrink-0">نوع الخط:</span>
               <select
                 value={quranFontFamily}
                 onChange={(e) => setQuranFontFamily(e.target.value)}
-                className="bg-emerald-800 text-white font-extrabold px-2.5 py-1.5 rounded-xl border border-emerald-600 focus:outline-none cursor-pointer"
+                className="bg-emerald-800 text-white font-extrabold px-2.5 py-1.5 rounded-xl border border-emerald-600 focus:outline-none cursor-pointer min-w-0 max-w-full"
               >
                 <option value="'Amiri Quran', serif">الخط العثماني الأصيل 📜</option>
                 <option value="'Scheherazade New', serif">خط النسخ القرآني ✒️</option>
@@ -509,12 +486,12 @@ export const QuranReader: React.FC = () => {
             </div>
 
             {/* Line Spacing / Height Selector */}
-            <div className="flex items-center gap-1.5 px-1.5 text-amber-300 font-bold border-r border-emerald-700/80">
-              <span>تباعد الأسطر:</span>
+            <div className="flex items-center gap-1.5 px-1.5 text-amber-300 font-bold border-r border-emerald-700/80 min-w-0 max-w-full">
+              <span className="shrink-0">تباعد الأسطر:</span>
               <select
                 value={quranLineHeight}
                 onChange={(e) => setQuranLineHeight(Number(e.target.value))}
-                className="bg-emerald-800 text-white font-extrabold px-2.5 py-1.5 rounded-xl border border-emerald-600 focus:outline-none cursor-pointer"
+                className="bg-emerald-800 text-white font-extrabold px-2.5 py-1.5 rounded-xl border border-emerald-600 focus:outline-none cursor-pointer min-w-0 max-w-full"
               >
                 <option value={2.2}>عادي (2.2x)</option>
                 <option value={2.6}>مريح (2.6x)</option>
