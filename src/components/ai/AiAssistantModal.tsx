@@ -2,6 +2,37 @@ import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Send, Bot, User, RefreshCw, Key, Check, AlertCircle } from 'lucide-react';
 import { askQuranAssistant } from '../../services/geminiService';
 
+const QUICK_PROMPTS = [
+  { label: '🕌 أركان الإسلام والإيمان', prompt: 'ما هي أركان الإسلام وأركان الإيمان مع الدليل؟', cls: 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' },
+  { label: '🤲 صلاة الاستخارة', prompt: 'كيفية صلاة الاستخارة ودعاؤها', cls: 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100' },
+  { label: '📖 تفسير سورة الفاتحة', prompt: 'تفسير ميسر لسورة الفاتحة', cls: 'bg-teal-50 text-teal-900 border-teal-300 hover:bg-teal-100' },
+  { label: '💎 أحكام التجويد', prompt: 'شرح أحكام النون الساكنة والتنوين مع أمثلة قرآنية', cls: 'bg-sky-50 text-sky-900 border-sky-300 hover:bg-sky-100' },
+  { label: '💰 زكاة المال', prompt: 'شروط زكاة المال ونصابها وكيف أحسبها؟', cls: 'bg-lime-50 text-lime-900 border-lime-300 hover:bg-lime-100' },
+  { label: '🌙 أذكار الصباح', prompt: 'أذكار الصباح الثابتة من السنة', cls: 'bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100' },
+  { label: '🗓️ جدول مراجعة', prompt: 'جدول مراجعة جزء عم وجزء تبارك خلال 10 أيام', cls: 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100' },
+];
+
+/** عرض بسيط لتنسيق Markdown: **عريض** و *عريض* و ### عناوين */
+function renderRich(text: string): React.ReactNode {
+  return text.split('\n').map((line, i) => {
+    const heading = /^\s*#{1,4}\s+/.test(line);
+    const clean = line.replace(/^\s*#{1,4}\s+/, '').replace(/^(\s*)[-*]\s+/, '$1• ');
+    const parts = clean.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).map((p, j) =>
+      /^\*\*[^*]+\*\*$/.test(p) || /^\*[^*\s][^*]*\*$/.test(p) ? (
+        <strong key={j} className="font-bold">{p.replace(/^\*\*?|\*\*?$/g, '')}</strong>
+      ) : (
+        <React.Fragment key={j}>{p}</React.Fragment>
+      ),
+    );
+    return (
+      <span key={i} className={heading ? 'block font-bold text-sm pt-1' : 'block'}>
+        {parts}
+        {!heading && clean === '' ? '\u00a0' : null}
+      </span>
+    );
+  });
+}
+
 interface AiAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,7 +48,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: 'assistant',
-      text: 'أهلاً بك في مساعد أكاديمية القرآن الذكي! 🌿 كيف يمكنني إفادتك اليوم؟ يمكنك سؤالي عن تفسير أي سورة (مثل سورة الإخلاص، الفاتحة، الفلق)، أو أحكام التجويد، أو جداول الحفظ والمراجعة.',
+      text: 'أهلاً بك في مساعد إتقان الذكي! 🌿 اسألني عن أي شيء في الدين الإسلامي: تفسير القرآن والتجويد والحفظ، العقيدة، أحكام الصلاة والصيام والزكاة والحج والمعاملات، الحديث، السيرة، الأذكار والأخلاق.',
       time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -63,7 +94,11 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
     setLoading(true);
 
     try {
-      const reply = await askQuranAssistant(text);
+      const history = messages
+        .slice(1)
+        .slice(-10)
+        .map((m) => ({ role: m.sender, text: m.text }));
+      const reply = await askQuranAssistant(text, undefined, history);
       const botMsg: ChatMessage = {
         sender: 'assistant',
         text: reply,
@@ -98,8 +133,8 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base sm:text-lg">مساعد إتقان الذكي للقرآن والتجويد</h3>
-              <p className="text-emerald-200 text-xs">إجابات دقيقة لتفسير السور، أحكام التجويد، وجداول الحفظ</p>
+              <h3 className="font-bold text-base sm:text-lg">مساعد إتقان الذكي للعلوم الإسلامية</h3>
+              <p className="text-emerald-200 text-xs">القرآن والتفسير، العقيدة، الفقه، الحديث، السيرة والأذكار</p>
             </div>
           </div>
           
@@ -177,7 +212,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
                 }`}
               >
                 <div className="whitespace-pre-line text-xs font-medium space-y-1">
-                  {msg.text}
+                  {renderRich(msg.text)}
                 </div>
                 <span className="text-[10px] opacity-70 block text-left pt-1" dir="ltr">{msg.time}</span>
               </div>
@@ -187,7 +222,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
           {loading && (
             <div className="flex items-center gap-2 text-slate-500 font-bold p-3 bg-white rounded-2xl border w-fit shadow-sm">
               <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin" />
-              جاري صياغة الإجابة القرآنية الميسرة...
+              جاري إعداد الإجابة...
             </div>
           )}
         </div>
@@ -195,30 +230,15 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
         {/* Quick Suggestion Chips */}
         <div className="p-2.5 sm:p-3 bg-white border-t border-slate-200/80 flex items-center gap-2 overflow-x-auto text-[11px] shrink-0">
           <span className="font-bold text-slate-500 shrink-0">أسئلة مقترحة:</span>
-          <button
-            onClick={() => handleQuickPrompt('تفسير بسيط لسورة الإخلاص')}
-            className="px-3 py-1 bg-amber-50 text-amber-900 font-bold rounded-xl border border-amber-300 hover:bg-amber-100 shrink-0"
-          >
-            ✨ تفسير سورة الإخلاص
-          </button>
-          <button
-            onClick={() => handleQuickPrompt('تفسير ميسر لسورة الفاتحة')}
-            className="px-3 py-1 bg-teal-50 text-teal-900 font-bold rounded-xl border border-teal-300 hover:bg-teal-100 shrink-0"
-          >
-            📖 تفسير سورة الفاتحة
-          </button>
-          <button
-            onClick={() => handleQuickPrompt('شرح حكم الإدغام والإظهار والإخفاء مع أمثلة قرآنية')}
-            className="px-3 py-1 bg-emerald-50 text-emerald-800 font-bold rounded-xl border border-emerald-300 hover:bg-emerald-100 shrink-0"
-          >
-            💎 أحكام التجويد
-          </button>
-          <button
-            onClick={() => handleQuickPrompt('جدول مراجعة جزء عم وجزء تبارك خلال 10 أيام')}
-            className="px-3 py-1 bg-purple-50 text-purple-900 font-bold rounded-xl border border-purple-300 hover:bg-purple-100 shrink-0"
-          >
-            🗓️ جدول مراجعة جزء عم
-          </button>
+          {QUICK_PROMPTS.map((q) => (
+            <button
+              key={q.label}
+              onClick={() => handleQuickPrompt(q.prompt)}
+              className={`px-3 py-1 font-bold rounded-xl border shrink-0 ${q.cls}`}
+            >
+              {q.label}
+            </button>
+          ))}
         </div>
 
         {/* Footer Input Form */}
@@ -234,7 +254,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ isOpen, onCl
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="اكتب سؤالك (مثال: تفسير سورة الإخلاص، حكم الإدغام، جدول مراجعة...)"
+              placeholder="اكتب أي سؤال ديني (مثال: كيفية صلاة الاستخارة، شروط الزكاة...)"
               className="flex-1 p-3 text-xs border rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-slate-50 focus:bg-white"
             />
             <button

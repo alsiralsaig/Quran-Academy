@@ -10,9 +10,14 @@ const getPersonalKey = (): string => {
   return '';
 };
 
-async function askWithPersonalKey(apiKey: string, prompt: string, context?: string): Promise<string | null> {
-  const systemInstruction = `أنت "مساعد إتقان القرآني الذكي" - معلم قرآني ومستشار تربوي خبير في أحكام التجويد، التفسير الميسر، وطرق تحفيظ القرآن الكريم ومراجعته.
-أجب بدقة على السؤال المحدد فقط، بلغة عربية فصيحة وميسرة مع الاستشهاد بالآيات الكريمة والأمثلة.`;
+export interface AssistantTurn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+async function askWithPersonalKey(apiKey: string, prompt: string, context?: string, history: AssistantTurn[] = []): Promise<string | null> {
+  const systemInstruction = `أنت "مساعد إتقان الذكي": عالم ومعلّم مسلم تجيب عن كل ما يخص الدين الإسلامي (القرآن وتفسيره وتجويده، العقيدة، الفقه بالمذاهب الأربعة، الحديث مع مصدره ودرجته، السيرة، الأخلاق، الأذكار).
+أجب بدقة وبعربية ميسرة، واستشهد بالآيات والأحاديث الصحيحة مع مصادرها، ولا تخترع نصاً؛ وإن لم تتأكد فقل ذلك.`;
   const userText = context ? `السياق: ${context}\n\nسؤال المستخدم: ${prompt}` : `سؤال المستخدم: ${prompt}`;
   for (const model of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
     try {
@@ -21,7 +26,10 @@ async function askWithPersonalKey(apiKey: string, prompt: string, context?: stri
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents: [{ role: 'user', parts: [{ text: userText }] }],
+          contents: [
+            ...history.slice(-10).map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] })),
+            { role: 'user', parts: [{ text: userText }] },
+          ],
           generationConfig: { temperature: 0.5 },
         }),
       });
@@ -37,13 +45,13 @@ async function askWithPersonalKey(apiKey: string, prompt: string, context?: stri
   return null;
 }
 
-export async function askQuranAssistant(prompt: string, context?: string): Promise<string> {
+export async function askQuranAssistant(prompt: string, context?: string, history: AssistantTurn[] = []): Promise<string> {
   const trimmedPrompt = prompt.trim();
 
   // 1) مفتاح شخصي لو المستخدم حاطّه
   const personal = getPersonalKey();
   if (personal) {
-    const r = await askWithPersonalKey(personal, trimmedPrompt, context);
+    const r = await askWithPersonalKey(personal, trimmedPrompt, context, history);
     if (r) return r;
   }
 
@@ -53,7 +61,11 @@ export async function askQuranAssistant(prompt: string, context?: string): Promi
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'x-qa-client': '1' },
-      body: JSON.stringify({ prompt: trimmedPrompt.slice(0, 2000), context: context?.slice(0, 4000) }),
+      body: JSON.stringify({
+        prompt: trimmedPrompt.slice(0, 2000),
+        context: context?.slice(0, 4000),
+        history: history.slice(-10).map((t) => ({ role: t.role, text: t.text.slice(0, 3000) })),
+      }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -266,16 +278,12 @@ function getSmartQuranicKnowledgeResponse(query: string): string {
 • اكتب الآيتين المتشابهتين جنباً إلى جنب مع تلوين الكلمة المفتاحية المختلفة.`;
   }
 
-  // 13. الإجابة الذكية العامة
-  return `🌿 *أهلاً بك في مساعد أكاديمية القرآن الكريم الذكي!*
+  // 13. لا يوجد اتصال بالمساعد — نوضّح ذلك بصراحة بدل رد عام مضلّل
+  return `⚠️ *تعذّر الاتصال بالمساعد الذكي الآن* (ضعف في الإنترنت أو ضغط على الخدمة).
 
-يسعدني دائماً إجابتك بدقة في كل ما يخص:
-1. **تفسير السور والآيات** (مثل: تفسير سورة الإخلاص، الفلق، الناس، الكوثر، الفاتحة...).
-2. **شرح أحكام التجويد ومخارج الحروف** (الإظهار، الإدغام، الإخفاء، القلقلة، المدود).
-3. **جداول الحفظ والمراجعة الأسبوعية والشهرية.**
-4. **تثبيت الحفظ وضبط المتشابهات اللفظية.**
+جرّب إرسال سؤالك مرة أخرى بعد قليل.
 
-اكتب سؤالك المحدد وسأعطيك الشرح الشافي والميسر بإذن الله! 📖✨`;
+وبدون اتصال أستطيع مساعدتك في: تفسير سور (الفاتحة، الإخلاص، الفلق، الناس، الكوثر، العصر، الملك، الكهف)، أحكام النون الساكنة، القلقلة والمدود، جداول المراجعة، وضبط المتشابهات. 📖`;
 }
 
 export async function generateMemorizationSchedule(params: {

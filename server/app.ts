@@ -7,7 +7,7 @@ import {
   hashPassword, verifyPassword, passwordProblem, normalizePhone,
   signSession, readSession, sessionCookie, clearCookie, parseCookies, tempPassword,
 } from './auth.js';
-import { askGemini, tafsirWithGemini } from './ai.js';
+import { askGemini, tafsirWithGemini, lastAiError } from './ai.js';
 
 // ───────────────────────── أنواع عامة ─────────────────────────
 
@@ -1230,10 +1230,20 @@ route('POST', '/ai/ask', async (c) => {
   const prompt = str(c.req.body?.prompt, 'السؤال', 2000);
   const context = str(c.req.body?.context, 'السياق', 4000, false);
   await rateLimit(c.db, `ai:${c.user?.id || c.req.ip || 'anon'}`, c.user ? 100 : 30);
-  const text = await askGemini(prompt, context);
-  if (!text) throw new HttpError(503, 'المساعد غير متاح حالياً');
+  const rawHist = Array.isArray(c.req.body?.history) ? c.req.body.history : [];
+  const history = rawHist
+    .slice(-10)
+    .filter((t: any) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.text === 'string' && t.text.trim())
+    .map((t: any) => ({ role: t.role as 'user' | 'assistant', text: String(t.text).slice(0, 3000) }));
+  const text = await askGemini(prompt, context, history);
+  if (!text) {
+    console.warn('[ai] unavailable:', lastAiError);
+    throw new HttpError(503, 'المساعد غير متاح حالياً');
+  }
   return { text };
 });
+
+route('GET', '/ai/status', async () => ({ geminiKey: !!process.env.GEMINI_API_KEY, lastError: lastAiError || null }));
 
 route('POST', '/gemini/tafsir', async (c) => {
   const b = c.req.body || {};
