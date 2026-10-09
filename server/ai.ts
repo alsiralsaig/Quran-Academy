@@ -124,3 +124,43 @@ export async function tafsirWithGemini(surah: string, ayah: number, text: string
     return null;
   }
 }
+
+/** تحويل تسجيل صوتي لنص (بديل للأجهزة الما فيها التعرّف على الكلام) */
+export async function transcribeAudio(base64: string, mime: string): Promise<string | null> {
+  const key = process.env.GEMINI_API_KEY || '';
+  if (!key) return null;
+  const body = {
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { inline_data: { mime_type: mime, data: base64 } },
+          { text: 'اكتب نص هذا التسجيل الصوتي حرفياً كما قيل (غالباً سؤال ديني بالعربية أو العامية السودانية). أعد النص فقط بدون أي شرح. إن كان التسجيل فارغاً أو غير مفهوم فأعد نصاً فارغاً.' },
+        ],
+      },
+    ],
+    generationConfig: { temperature: 0, maxOutputTokens: 512 },
+  };
+  for (const model of ['gemini-flash-lite-latest', 'gemini-flash-latest']) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 25000);
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(timer));
+      if (!res.ok) {
+        lastAiError = `transcribe:${model}:${res.status}`;
+        continue;
+      }
+      const data: any = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+      return text || '';
+    } catch (e) {
+      lastAiError = `transcribe:${model}:${(e as Error).name}`;
+    }
+  }
+  return null;
+}

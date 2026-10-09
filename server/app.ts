@@ -7,7 +7,7 @@ import {
   hashPassword, verifyPassword, passwordProblem, normalizePhone,
   signSession, readSession, sessionCookie, clearCookie, parseCookies, tempPassword,
 } from './auth.js';
-import { askGemini, tafsirWithGemini, lastAiError } from './ai.js';
+import { askGemini, tafsirWithGemini, lastAiError, transcribeAudio } from './ai.js';
 
 // ───────────────────────── أنواع عامة ─────────────────────────
 
@@ -1240,6 +1240,17 @@ route('POST', '/ai/ask', async (c) => {
     console.warn('[ai] unavailable:', lastAiError);
     throw new HttpError(503, 'المساعد غير متاح حالياً');
   }
+  return { text };
+});
+
+route('POST', '/ai/transcribe', async (c) => {
+  const audio = typeof c.req.body?.audio === 'string' ? c.req.body.audio : '';
+  const mime = String(c.req.body?.mime || 'audio/webm').split(';')[0];
+  if (!audio || audio.length > 3_000_000) throw new HttpError(400, 'التسجيل فارغ أو طويل جداً');
+  if (!/^audio\/(webm|ogg|mp4|mpeg|wav|aac|x-m4a|3gpp)$/.test(mime)) throw new HttpError(400, 'صيغة صوت غير مدعومة');
+  await rateLimit(c.db, `ai:${c.user?.id || c.req.ip || 'anon'}`, c.user ? 100 : 30);
+  const text = await transcribeAudio(audio, mime);
+  if (text === null) throw new HttpError(503, 'تعذّر تحويل الصوت لنص');
   return { text };
 });
 
