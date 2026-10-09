@@ -1,7 +1,7 @@
 // استدعاء Gemini من السيرفر فقط — المفتاح ما بيوصل المتصفح أبداً.
 
 const MODELS = () =>
-  (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.0-flash').split(',').map((s) => s.trim()).filter(Boolean);
+  (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-flash-latest,gemini-2.5-flash-lite,gemini-flash-lite-latest').split(',').map((s) => s.trim()).filter(Boolean);
 
 const SYSTEM = `أنت "مساعد إتقان الذكي" في أكاديمية إتقان للقرآن الكريم: عالم ومعلّم مسلم واسع الاطلاع، تجيب عن كل ما يخص الدين الإسلامي وعلومه، ومنها:
 - القرآن الكريم: التفسير (الميسر، ابن كثير، السعدي، الطبري)، أسباب النزول، علوم القرآن، القراءات، التجويد، الحفظ والمراجعة والمتشابهات.
@@ -49,6 +49,7 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ChatOpts): Pr
       ...(opts.json ? { responseMimeType: 'application/json' } : {}),
     },
   };
+  const errs: string[] = [];
   for (const model of MODELS()) {
     try {
       const ctrl = new AbortController();
@@ -60,16 +61,21 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ChatOpts): Pr
         signal: ctrl.signal,
       }).finally(() => clearTimeout(timer));
       if (!res.ok) {
-        lastAiError = `gemini:${model}:${res.status}`;
+        const detail = await res.text().catch(() => '');
+        const msg = (detail.match(/"message":\s*"([^"]{0,120})/) || [])[1] || '';
+        errs.push(`${model}:${res.status}${msg ? ' ' + msg : ''}`);
+        lastAiError = errs.join(' | ');
         console.warn(`[ai] ${model} -> ${res.status}`);
         continue;
       }
       const data: any = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
       if (text) return text;
-      lastAiError = `gemini:${model}:empty`;
+      errs.push(`${model}:empty`);
+      lastAiError = errs.join(' | ');
     } catch (e) {
-      lastAiError = `gemini:${model}:${(e as Error).name}`;
+      errs.push(`${model}:${(e as Error).name}`);
+      lastAiError = errs.join(' | ');
       console.warn(`[ai] ${model} failed:`, (e as Error).message);
     }
   }
