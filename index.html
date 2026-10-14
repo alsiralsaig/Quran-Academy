@@ -23,6 +23,42 @@
   </head>
   <body class="bg-slate-50 text-slate-800 font-['Cairo',sans-serif] antialiased selection:bg-emerald-500 selection:text-white">
     <div id="root"></div>
+    <script>
+    /* حارس الإقلاع: لو ملف التطبيق فشل تحميله (كاش قديم/نشر جديد) بنمسح الكاش ونعيد مرة واحدة،
+       ولو العاد بنعرض رسالة واضحة بدل الشاشة البيضاء */
+    (function () {
+      var shown = false;
+      function fatal(msg) {
+        if (shown) return;
+        shown = true;
+        var d = document.createElement('div');
+        d.dir = 'rtl';
+        d.style.cssText = 'font-family:system-ui,sans-serif;position:fixed;inset:0;background:#f8fafc;z-index:99999;padding:20px;display:flex;align-items:center;justify-content:center;';
+        d.innerHTML = '<div style="max-width:420px;background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:24px;text-align:center">'
+          + '<div style="font-size:40px">🛠️</div>'
+          + '<h2 style="font-weight:800;margin:8px 0;font-size:17px">التطبيق ما كملش تحميله</h2>'
+          + '<p style="color:#475569;font-size:13px;line-height:1.8">دوس «إصلاح» — بنمسح النسخة القديمة المخزنة وبنعيد الفتح.</p>'
+          + '<button onclick="sessionStorage.removeItem(\'itqan_fixed\');caches&&caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}).then(function(){return navigator.serviceWorker&&navigator.serviceWorker.getRegistrations?navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}):1}).then(function(){location.replace(location.pathname+\'?r=\'+Date.now())})" '
+          + 'style="margin:8px;padding:12px 28px;border:0;border-radius:14px;background:#059669;color:#fff;font-weight:800;font-size:14px">🔧 إصلاح وإعادة فتح</button>'
+          + '<pre style="direction:ltr;text-align:left;font-size:9px;color:#94a3b8;max-height:70px;overflow:auto;margin-top:8px;white-space:pre-wrap">' + String(msg || '').slice(0, 300) + '</pre>'
+          + '</div>';
+        document.body.appendChild(d);
+      }
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+          if (!sessionStorage.getItem('itqan_fixed')) {
+            sessionStorage.setItem('itqan_fixed', '1');
+            if ('caches' in window) {
+              caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
+                .catch(function () {})
+                .then(function () { location.reload(); });
+            } else location.reload();
+          } else fatal('فشل تحميل: ' + (t.src || t.href || '').slice(-60));
+        }
+      }, true);
+    })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
