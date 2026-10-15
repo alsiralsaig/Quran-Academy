@@ -372,6 +372,18 @@ export const QuranFocusSessionMode: React.FC<QuranFocusSessionModeProps> = ({
 
         </div>
 
+        {/* زر الخروج من الجلسة — بارز أسفل الشاشة */}
+        <button
+          onClick={() => {
+            stopAmbientSound();
+            onClose();
+          }}
+          className="w-full py-4 rounded-2xl bg-rose-600/90 hover:bg-rose-600 text-white font-black text-sm shadow-2xl border border-rose-400/40 transition-all active:scale-[.98] flex items-center justify-center gap-2 relative z-10"
+        >
+          <X className="w-5 h-5" />
+          إنهاء الجلسة والخروج
+        </button>
+
       </div>
 
     </div>

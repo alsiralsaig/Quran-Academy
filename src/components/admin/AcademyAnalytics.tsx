@@ -147,7 +147,7 @@ export const AcademyAnalytics: React.FC<AcademyAnalyticsProps> = ({ subscription
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{totalRevenue} ر.س</span>
+            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{totalRevenue} ج.س</span>
             <span className="text-xs font-bold text-emerald-600 flex items-center gap-0.5">
               <ArrowUpRight className="w-3.5 h-3.5" />
               +22%
@@ -246,7 +246,7 @@ export const AcademyAnalytics: React.FC<AcademyAnalyticsProps> = ({ subscription
           <div>
             <h4 className="font-extrabold text-slate-900 dark:text-white text-base font-serif flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-amber-500" />
-              رسم بياني: إجمالي الاشتراكات والإيرادات الشهرية (بالريال السعودي)
+              رسم بياني: إجمالي الاشتراكات والإيرادات الشهرية (بالجنيه السوداني)
             </h4>
             <p className="text-xs text-slate-500">حجم مبالغ الاشتراكات المحولة والمؤكدة شهرياً.</p>
           </div>
@@ -263,7 +263,7 @@ export const AcademyAnalytics: React.FC<AcademyAnalyticsProps> = ({ subscription
               />
               <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
               <Bar dataKey="اشتراكات_مفعلة" name="الاشتراكات المفعلة" fill="#f59e0b" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="الإيرادات" name="الإيرادات (ر.س)" fill="#10b981" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="الإيرادات" name="الإيرادات (ج.س)" fill="#10b981" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

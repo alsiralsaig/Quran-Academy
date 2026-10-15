@@ -1,4 +1,5 @@
 import React from 'react';
+import { currencyLabel } from '../../lib/currency';
 import { X, Check, AlertCircle, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Subscription } from '../../types';
 
@@ -73,7 +74,7 @@ export const ReceiptViewerModal: React.FC<ReceiptViewerModalProps> = ({
             </div>
             <div>
               <span className="text-slate-500 text-xs block">المبلغ المحول</span>
-              <span className="font-bold text-amber-600">{subscription.amountPaid} {subscription.currency}</span>
+              <span className="font-bold text-amber-600">{subscription.amountPaid} {currencyLabel(subscription.currency)}</span>
             </div>
             <div>
               <span className="text-slate-500 text-xs block">تاريخ الطلب</span>

@@ -43,7 +43,7 @@ export interface Package {
   sessionCount: number; // e.g. 8
   sessionDurationMinutes: number; // e.g. 45
   price: number; // e.g. 250 SAR
-  currency: string; // e.g. "ريال سعودي"
+  currency: string; // e.g. "جنيه سوداني"
   description: string;
   features: string[];
   popular?: boolean;

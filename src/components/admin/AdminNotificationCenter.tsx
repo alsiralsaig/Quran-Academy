@@ -109,7 +109,7 @@ export const AdminNotificationCenter: React.FC<AdminNotificationCenterProps> = (
         isRead: false,
         relatedId: s.id,
         applicantName: s.studentName,
-        amountOrSubject: `${s.amountPaid} ر.س`,
+        amountOrSubject: `${s.amountPaid} ج.س`,
       });
     });
 

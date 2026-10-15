@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { currencyLabel } from '../../lib/currency';
 import {
   Users,
   GraduationCap,
@@ -173,7 +174,7 @@ export const AdminDashboard: React.FC = () => {
         sessionCount: Number(pkgSessions),
         sessionDurationMinutes: Number(pkgDuration),
         price: Number(pkgPrice),
-        currency: 'ريال سعودي',
+        currency: 'جنيه سوداني',
         description: pkgDesc,
         features: featuresArr,
       });
@@ -314,7 +315,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="bg-emerald-950/40 p-4 rounded-2xl border border-emerald-700/40">
             <span className="text-emerald-200/80 text-xs font-medium block">إجمالي الإيرادات المعتمدة</span>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-2xl font-bold text-amber-400">{totalRevenue} ر.س</span>
+              <span className="text-2xl font-bold text-amber-400">{totalRevenue} ج.س</span>
               <DollarSign className="w-6 h-6 text-amber-400/80" />
             </div>
           </div>
@@ -543,7 +544,7 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500">المبلغ القائم بالتحويل:</span>
-                        <span className="font-extrabold text-amber-600 text-sm">{sub.amountPaid} {sub.currency}</span>
+                        <span className="font-extrabold text-amber-600 text-sm">{sub.amountPaid} {currencyLabel(sub.currency)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500">الحصص المتاحة بالباقة:</span>
@@ -792,7 +793,7 @@ export const AdminDashboard: React.FC = () => {
                   ) : (
                     <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
                       <span className="text-slate-500">معدل أجر الحصة:</span>
-                      <span className="font-bold text-emerald-800">{teacher.hourlyRate || 120} ريال / الحصة</span>
+                      <span className="font-bold text-emerald-800">{teacher.hourlyRate || 120} ج.س / الحصة</span>
                     </div>
                   )}
                 </div>
@@ -835,7 +836,7 @@ export const AdminDashboard: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <h4 className="font-extrabold text-slate-900 text-base">{pkg.name}</h4>
-                      <span className="text-lg font-bold text-emerald-700">{pkg.price} {pkg.currency}</span>
+                      <span className="text-lg font-bold text-emerald-700">{pkg.price} {currencyLabel(pkg.currency)}</span>
                     </div>
 
                     <p className="text-xs text-slate-600">{pkg.description}</p>
@@ -1073,7 +1074,7 @@ export const AdminDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">السعر (ر.س)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">السعر (ج.س)</label>
                   <input
                     type="number"
                     required
@@ -1197,7 +1198,7 @@ export const AdminDashboard: React.FC = () => {
               {/* Set hourly/session compensation rate */}
               <div className="bg-amber-50/80 border border-amber-300 p-4 rounded-2xl space-y-2">
                 <label className="block font-bold text-amber-950">
-                  تحديد أجر/مستحقات المعلمة للحصة (بالريال السعودي):
+                  تحديد أجر/مستحقات المعلمة للحصة (بالجنيه السوداني):
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -1206,7 +1207,7 @@ export const AdminDashboard: React.FC = () => {
                     onChange={(e) => setCustomHourlyRate(Number(e.target.value))}
                     className="w-full p-2.5 bg-white border border-amber-300 rounded-xl font-bold text-amber-900"
                   />
-                  <span className="text-xs font-bold text-amber-900 shrink-0">ر.س / الحصة</span>
+                  <span className="text-xs font-bold text-amber-900 shrink-0">ج.س / الحصة</span>
                 </div>
                 <div className="flex items-center gap-2 pt-1 text-[11px]">
                   <span className="text-amber-800 font-semibold">خيارات سريعة:</span>
@@ -1221,7 +1222,7 @@ export const AdminDashboard: React.FC = () => {
                           : 'bg-white text-slate-700 border-amber-200'
                       }`}
                     >
-                      {rate} ر.س
+                      {rate} ج.س
                     </button>
                   ))}
                 </div>

@@ -14,7 +14,7 @@ export const AVATAR_STUDENT_1 = `data:image/svg+xml;utf8,<svg xmlns="http://www.
 export const AVATAR_STUDENT_2 = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="28" fill="%23d97706"/><circle cx="50" cy="50" r="38" stroke="%23fef3c7" stroke-width="2"/><path d="M50 25L68 35L50 45L32 35L50 25Z" fill="%23fef3c7"/><path d="M40 45V58C40 63 50 67 50 67C50 67 60 63 60 58V45" stroke="%23fef3c7" stroke-width="2" fill="none"/><path d="M30 76C30 67 38 64 50 64C62 64 70 67 70 76H30Z" fill="%23fed7aa"/></svg>`;
 
 // Safe receipt mockup SVG
-export const SAMPLE_RECEIPT = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="%23f8fafc"><rect width="400" height="300" rx="16" fill="%23ffffff" stroke="%23cbd5e1" stroke-width="2"/><rect x="20" y="20" width="360" height="50" rx="10" fill="%23047857"/><text x="200" y="52" fill="white" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">إيصال تحويل بنكي معتمد - أكاديمية القرآن</text><text x="40" y="110" fill="%23475569" font-family="sans-serif" font-size="13">رقم العملية: #TRX-9824102</text><text x="40" y="145" fill="%23475569" font-family="sans-serif" font-size="13">المبلغ المحول: 320.00 ر.س</text><text x="40" y="180" fill="%23475569" font-family="sans-serif" font-size="13">الحساب المحول إليه: مصرف الراجحي</text><text x="40" y="215" fill="%23047857" font-family="sans-serif" font-size="14" font-weight="bold">حالة التحويل: تم الدفع بنجاح ✅</text><rect x="40" y="245" width="320" height="2" fill="%23e2e8f0"/><text x="200" y="275" fill="%2394a3b8" font-family="sans-serif" font-size="11" text-anchor="middle">وثيقة إلكترونية صادرة من التطبيق البنكي</text></svg>`;
+export const SAMPLE_RECEIPT = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="%23f8fafc"><rect width="400" height="300" rx="16" fill="%23ffffff" stroke="%23cbd5e1" stroke-width="2"/><rect x="20" y="20" width="360" height="50" rx="10" fill="%23047857"/><text x="200" y="52" fill="white" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">إيصال تحويل بنكي معتمد - أكاديمية القرآن</text><text x="40" y="110" fill="%23475569" font-family="sans-serif" font-size="13">رقم العملية: #TRX-9824102</text><text x="40" y="145" fill="%23475569" font-family="sans-serif" font-size="13">المبلغ المحول: 320.00 ج.س</text><text x="40" y="180" fill="%23475569" font-family="sans-serif" font-size="13">الحساب المحول إليه: بنك الخرطوم</text><text x="40" y="215" fill="%23047857" font-family="sans-serif" font-size="14" font-weight="bold">حالة التحويل: تم الدفع بنجاح ✅</text><rect x="40" y="245" width="320" height="2" fill="%23e2e8f0"/><text x="200" y="275" fill="%2394a3b8" font-family="sans-serif" font-size="11" text-anchor="middle">وثيقة إلكترونية صادرة من التطبيق البنكي</text></svg>`;
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -154,7 +154,7 @@ export const INITIAL_PACKAGES: Package[] = [
     sessionCount: 8,
     sessionDurationMinutes: 45,
     price: 320,
-    currency: 'ريال سعودي',
+    currency: 'جنيه سوداني',
     description: 'مناسبة للمبتدئين ولتصحيح التلاوة والتأسيس الصحيح للحفظ.',
     features: [
       '8 حصص فردية بالقاعة المباشرة',
@@ -170,7 +170,7 @@ export const INITIAL_PACKAGES: Package[] = [
     sessionCount: 12,
     sessionDurationMinutes: 60,
     price: 480,
-    currency: 'ريال سعودي',
+    currency: 'جنيه سوداني',
     description: 'باقة مكثفة لمراجعة أجزاء القرآن والتأهيل للإجازة مع ضبط التجويد.',
     features: [
       '12 حصة فردية تفاعلية بالقاعة',
@@ -187,7 +187,7 @@ export const INITIAL_PACKAGES: Package[] = [
     sessionCount: 16,
     sessionDurationMinutes: 30,
     price: 400,
-    currency: 'ريال سعودي',
+    currency: 'جنيه سوداني',
     description: 'باقة مرنة مصممة خصيصاً للأطفال للتحفيظ بالتكرار والتحفيز.',
     features: [
       '16 حصة فردية قصيرة وممتعة',
@@ -208,7 +208,7 @@ export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
     logoColor: 'from-amber-600 to-emerald-700'
   },
   {
-    bankName: 'مصرف الراجحي',
+    bankName: 'بنك الخرطوم',
     accountName: 'أكاديمية القرآن الكريم',
     accountNumber: '4820000000000000',
     iban: 'SA0380000000000000000000',
@@ -258,7 +258,7 @@ export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
     usedSessions: 2,
     remainingSessions: 6,
     amountPaid: 320,
-    currency: 'ريال سعودي',
+    currency: 'جنيه سوداني',
     paymentReceiptUrl: SAMPLE_RECEIPT,
     paymentStatus: 'approved',
     startDate: '2025-03-01',
@@ -278,7 +278,7 @@ export const INITIAL_SUBSCRIPTIONS: Subscription[] = [
     usedSessions: 0,
     remainingSessions: 12,
     amountPaid: 480,
-    currency: 'ريال سعودي',
+    currency: 'جنيه سوداني',
     paymentReceiptUrl: SAMPLE_RECEIPT,
     paymentStatus: 'pending',
     createdAt: '2025-03-28'

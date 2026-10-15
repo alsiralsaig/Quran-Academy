@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { currencyLabel } from '../../lib/currency';
 import {
   BookOpen,
   UserCheck,
@@ -570,7 +571,7 @@ export const StudentDashboard: React.FC = () => {
                       }`}
                     >
                       <h4 className="font-bold text-slate-900 text-sm">{pkg.name}</h4>
-                      <p className="text-emerald-700 font-extrabold text-base">{pkg.price} {pkg.currency}</p>
+                      <p className="text-emerald-700 font-extrabold text-base">{pkg.price} {currencyLabel(pkg.currency)}</p>
                       <p className="text-slate-600">{pkg.sessionCount} حصص ({pkg.sessionDurationMinutes} دقيقة)</p>
                     </div>
                   ))}
@@ -642,7 +643,7 @@ export const StudentDashboard: React.FC = () => {
               <div className="space-y-4 text-xs">
                 <h3 className="font-bold text-slate-900 text-lg">الخطوة 3: حوّل رسوم الاشتراك للحساب الرسمي</h3>
                 <p className="text-slate-600">
-                  يرجى تحويل مبلغ <span className="font-bold text-emerald-700">{selectedPkg?.price} {selectedPkg?.currency}</span> لأحد الحسابات الرسمية التالية:
+                  يرجى تحويل مبلغ <span className="font-bold text-emerald-700">{selectedPkg?.price} {currencyLabel(selectedPkg?.currency)}</span> لأحد الحسابات الرسمية التالية:
                 </p>
 
                 <div className="space-y-3">
